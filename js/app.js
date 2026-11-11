@@ -38,6 +38,7 @@ function padHTML({ letters, accs }) {
         <span class="level" aria-hidden="true"><i></i></span>
         <span class="heard">${speech.available ? '' : speech.reason}</span>
       </div>
+      ${speech.available ? '<p class="voice-tip">🗣️ Nota adını <b>normal konuşma tonunda</b> söyle (ince ya da bağırarak söylenince anlaşılmayabilir). Notayı kendi perdesinde söylemek için <b>Solfej</b> sekmesini kullan.</p>' : ''}
     </div>`;
 }
 function bindPad(root, onAnswer) {
