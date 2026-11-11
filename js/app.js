@@ -288,7 +288,7 @@ function renderTest(L, body, mode = 'oku') {
       <div class="staff-box ${mode === 'koy' ? 'tap' : ''}"><svg class="staff"></svg></div>
       <p class="prompt"></p>
       <div class="feedback" aria-live="polite"></div>
-      <div class="row-btns">${mode === 'oku' ? '<button class="ghost-btn listen">🔊 Dinle</button>' : ''}<button class="primary-btn next" hidden>Devam →</button></div>
+      <div class="row-btns">${mode === 'oku' ? '<button class="ghost-btn listen">🔊 Dinle</button>' : ''}<button class="primary-btn next" hidden>Devam →</button><button class="ghost-btn quit">⏹ Sınavı bitir</button></div>
       ${mode === 'oku' ? padHTML({ letters, accs }) : ''}
       <div class="passed-banner" hidden></div>
     </div>`;
@@ -418,6 +418,22 @@ function renderTest(L, body, mode = 'oku') {
     });
   }
   $('.next', body).addEventListener('click', next);
+  // yarıda bitir: sonuç gösterilir ama seviye geçme / en iyi puan kaydedilmez
+  $('.quit', body).addEventListener('click', () => {
+    if (speech.listening) speech.stop();
+    cleanup.forEach(f => f()); cleanup = [];
+    locked = true;
+    const b = $('.passed-banner', body);
+    b.hidden = false;
+    b.innerHTML = `<div class="pb-card"><div class="pb-emoji">⏹</div>
+      <h3>Sınav yarıda bitirildi</h3>
+      <p>${answered ? `${answered} soruda ${correct} doğru (%${Math.round(100 * correct / answered)}).` : 'Henüz soru cevaplanmadı.'}</p>
+      <p class="muted">Seviyeyi geçmek için sınavı sonuna kadar tamamlaman gerekir.</p>
+      <div class="row-btns"><button class="primary-btn again">Yeniden başla</button><button class="ghost-btn practice">Alıştırmaya dön</button><button class="ghost-btn home">Seviyeler</button></div></div>`;
+    $('.again', b).addEventListener('click', start);
+    $('.practice', b).addEventListener('click', () => location.hash = `seviye-${L.id}-alistir`);
+    $('.home', b).addEventListener('click', () => location.hash = '');
+  });
   start();
 }
 
@@ -448,6 +464,7 @@ function renderSolfej(L, body) {
         <button class="ghost-btn listen">🔊 Dinle</button>
         <button class="primary-btn micp">🎤 Başla</button>
         <button class="ghost-btn skip">Geç →</button>
+        <button class="ghost-btn quit">⏹ Bitir</button>
       </div>
       <div class="passed-banner" hidden></div>
     </div>`;
@@ -527,6 +544,7 @@ function renderSolfej(L, body) {
   });
   $('.listen', body).addEventListener('click', () => { if (!q) return; muteUntil = performance.now() + 2000; hist = []; playCents(q.cents); });
   $('.skip', body).addEventListener('click', () => { if (locked) return; store.recordAnswer(keyOf(q), false); skipped++; next(); });
+  $('.quit', body).addEventListener('click', () => { pos = deck.length; locked = true; finish(); });
   start();
 }
 
