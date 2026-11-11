@@ -1,5 +1,5 @@
 // İlerleme ve ayarlar (yalnızca bu tarayıcıda saklanır).
-const KEY = 'nota-ogren.v2';
+const KEY = 'nota-ogren.v3'; // v3: seviyeler her seferinde tek nota olacak şekilde yeniden düzenlendi
 
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } }
 let data = load();

@@ -24,21 +24,28 @@ function pluckBuffer(c, f, dur = 1.8) {
   const len = Math.floor(sr * dur);
   const buf = c.createBuffer(1, len, sr);
   const out = buf.getChannelData(0);
-  // iki tel (çift tel grubu gibi), hafif farklı akort
-  for (const [fr, amp] of [[f, 0.6], [f * 1.0018, 0.4]]) {
-    const N = Math.max(2, Math.round(sr / fr));
-    const ring = new Float32Array(N);
-    for (let i = 0; i < N; i++) ring[i] = Math.random() * 2 - 1;
-    let idx = 0, prev = 0;
-    const decay = 0.9965;
-    for (let i = 0; i < len; i++) {
-      const cur = ring[idx];
-      const nxt = 0.5 * (cur + prev) * decay;
-      prev = cur;
-      ring[idx] = nxt;
-      out[i] += cur * amp;
-      idx = (idx + 1) % N;
-    }
+  // Tek tel, tam akort: gecikme hattının kesirli kısmı all-pass süzgeçle ayarlanır
+  // (alçak geçiren süzgecin yarım örneklik gecikmesi de hesaba katılır).
+  const D = sr / f - 0.5;
+  const N = Math.max(2, Math.floor(D));
+  const frac = D - N;
+  const C = (1 - frac) / (1 + frac);
+  const ring = new Float32Array(N);
+  let mean = 0;
+  for (let i = 0; i < N; i++) { ring[i] = Math.random() * 2 - 1; mean += ring[i]; }
+  mean /= N;
+  for (let i = 0; i < N; i++) ring[i] -= mean;
+  let idx = 0, prev = 0, apX = 0, apY = 0;
+  const decay = 0.996;
+  for (let i = 0; i < len; i++) {
+    const cur = ring[idx];
+    const lp = 0.5 * (cur + prev) * decay;
+    prev = cur;
+    const ap = C * lp + apX - C * apY;
+    apX = lp; apY = ap;
+    ring[idx] = ap;
+    out[i] = cur * 0.8;
+    idx = (idx + 1) % N;
   }
   cache.set(key, buf);
   return buf;

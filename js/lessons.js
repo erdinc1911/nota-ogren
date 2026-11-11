@@ -32,7 +32,7 @@ export const LEVELS = [
         text: 'Porteye sığmayan notalar için notanın yanına <b>kısa ek çizgiler</b> çizilir. Örneğin alttaki <b>Do</b> kendi ek çizgisinin üzerindedir; üstteki <b>La</b> da öyle.',
         staff: { notes: [N(DO4), N(LA5)] } },
       { title: 'Nasıl çalışacağız?',
-        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: 20–40 soruluk sınavda <b>%90</b> ve üstü doğru yapınca sonraki seviye açılır. <b>Porteye koy</b> bölümünde de notaları porteye yerleştirerek çalışabilirsin.',
+        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: her seviyede bir yeni nota; 20–40 soruluk sınavda <b>%90</b> ve üstü doğru yapınca sonraki seviye açılır. <b>Porteye koy</b> bölümünde de notaları porteye yerleştirerek çalışabilirsin.',
         staff: { notes: [N(SOL4), N(LA4)] } },
     ],
   },
@@ -56,77 +56,111 @@ export const LEVELS = [
       { title: 'Si – 3. çizgi',
         text: 'La’nın bir basamak üstü <b>3. çizgi</b>, yani portenin <b>tam ortasındaki çizgi</b> Si’dir.',
         staff: { notes: [N(SOL4), N(LA4), N(SI4)], highlight: [SI4.step], numbers: true }, play: [SOL4, LA4, SI4] },
-      { title: 'Sol ve Si ikisi de çizgide',
-        text: 'Sol 2. çizgide, Si 3. çizgide. Aralarında, aralıkta La var. <b>Çizgi – aralık – çizgi</b>.',
+      { title: 'Çizgi – aralık – çizgi',
+        text: 'Sol 2. çizgide, Si 3. çizgide; arada, aralıkta La var.',
         staff: { notes: [N(SOL4), N(LA4), N(SI4)], highlight: [SOL4.step, SI4.step] } },
     ],
   },
   {
-    id: 3, title: 'Fa ve Mi', subtitle: 'Portenin altı', newNotes: [FA4, MI4], questions: 30,
-    slides: [
-      { title: 'Fa – 1. aralık',
-        text: 'Sol’ün bir basamak altı, <b>1. ve 2. çizgi arasındaki aralık</b> Fa’dır.',
-        staff: { notes: [N(FA4), N(SOL4)], highlight: [FA4.step], numbers: true }, play: [FA4, SOL4] },
-      { title: 'Mi – 1. çizgi',
-        text: 'En alttaki <b>1. çizgi</b> Mi’dir.',
-        staff: { notes: [N(MI4), N(FA4), N(SOL4)], highlight: [MI4.step], numbers: true }, play: [MI4, FA4, SOL4] },
-      { title: 'Çizgilerdeki notalar',
-        text: 'Şimdiye kadar çizgilerde: <b>Mi (1), Sol (2), Si (3)</b>. Aralıklarda: <b>Fa, La</b>. Hepsini sırayla dinle.',
-        staff: { notes: [MI4, FA4, SOL4, LA4, SI4].map(x => N(x)) }, play: [MI4, FA4, SOL4, LA4, SI4] },
-    ],
-  },
-  {
-    id: 4, title: 'Re ve Do', subtitle: 'Portenin altına iniyoruz', newNotes: [RE4, DO4], questions: 30,
-    slides: [
-      { title: 'Re – portenin hemen altı',
-        text: 'Mi’nin bir basamak altı Re’dir: nota <b>1. çizginin altına asılır</b>. Bağlamada <b>alt tel boşta</b> Re sesini verir.',
-        staff: { notes: [N(RE4), N(MI4)], highlight: [RE4.step] }, play: [RE4, MI4] },
-      { title: 'Do – alttaki ek çizgi',
-        text: 'Re’nin altı Do’dur. Porteye sığmadığı için <b>kendi kısa ek çizgisinin</b> üzerine yazılır.',
-        staff: { notes: [N(DO4), N(RE4), N(MI4)] }, play: [DO4, RE4, MI4] },
-      { title: 'Bir oktav tamam',
-        text: 'Do’dan Si’ye yedi notanın hepsini öğrendin: <b>Do Re Mi Fa Sol La Si</b>.',
-        staff: { notes: [DO4, RE4, MI4, FA4, SOL4, LA4, SI4].map(x => N(x)) }, play: [DO4, RE4, MI4, FA4, SOL4, LA4, SI4] },
-    ],
-  },
-  {
-    id: 5, title: 'Üstteki Do ve Re', subtitle: 'İkinci oktava geçiş', newNotes: [DO5, RE5], questions: 30,
+    id: 3, title: 'Do', subtitle: '3. aralık', newNotes: [DO5], questions: 26,
     slides: [
       { title: 'Do – 3. aralık',
-        text: 'Si’nin bir basamak üstü yeniden <b>Do</b>’dur: <b>3. aralıkta</b> durur. Alttaki Do’dan 8 basamak yukarıdadır; buna <b>oktav</b> denir. Aynı isim, daha ince ses.',
-        staff: { notes: [N(DO4), N(DO5)], highlight: [DO5.step], numbers: true }, play: [DO4, DO5] },
-      { title: 'Re – 4. çizgi',
-        text: 'Do’nun üstü <b>4. çizgi</b> Re’dir.',
-        staff: { notes: [N(SI4), N(DO5), N(RE5)], highlight: [RE5.step], numbers: true }, play: [SI4, DO5, RE5] },
+        text: 'Si’nin bir basamak üstü <b>3. ve 4. çizgi arasındaki aralık</b>: <b>Do</b>.',
+        staff: { notes: [N(LA4), N(SI4), N(DO5)], highlight: [DO5.step], numbers: true }, play: [LA4, SI4, DO5] },
+      { title: 'Aralıkta olanlar',
+        text: 'Şimdiye kadar aralıkta duran iki nota: <b>La (2. aralık)</b> ve <b>Do (3. aralık)</b>. Aralarındaki çizgide Si var.',
+        staff: { notes: [N(LA4), N(SI4), N(DO5)], highlight: [LA4.step, DO5.step] } },
     ],
   },
   {
-    id: 6, title: 'Üstteki Mi ve Fa', subtitle: 'Portenin tepesi', newNotes: [MI5, FA5], questions: 30,
+    id: 4, title: 'Re', subtitle: '4. çizgi', newNotes: [RE5], questions: 28,
     slides: [
-      { title: 'Mi – 4. aralık, Fa – 5. çizgi',
-        text: 'Re’nin üstü <b>4. aralıkta Mi</b>, en üstteki <b>5. çizgide Fa</b>.',
-        staff: { notes: [N(RE5), N(MI5), N(FA5)], highlight: [MI5.step, FA5.step], numbers: true }, play: [RE5, MI5, FA5] },
-      { title: 'Hafıza ipucu',
-        text: 'Beş çizgi alttan yukarı: <b>Mi – Sol – Si – Re – Fa</b>.<br>Dört aralık alttan yukarı: <b>Fa – La – Do – Mi</b>.',
-        staff: { notes: [MI4, SOL4, SI4, RE5, FA5].map(x => N(x)), highlight: [MI4.step, SOL4.step, SI4.step, RE5.step, FA5.step] } },
+      { title: 'Re – 4. çizgi',
+        text: 'Do’nun bir basamak üstü <b>4. çizgi</b> Re’dir.',
+        staff: { notes: [N(SI4), N(DO5), N(RE5)], highlight: [RE5.step], numbers: true }, play: [SI4, DO5, RE5] },
+      { title: 'Çizgilerdeki notalar',
+        text: 'Çizgilerde: <b>Sol (2), Si (3), Re (4)</b>. Birer çizgi atlayarak: Sol → Si → Re.',
+        staff: { notes: [N(SOL4), N(SI4), N(RE5)], highlight: [SOL4.step, SI4.step, RE5.step] }, play: [SOL4, SI4, RE5] },
+    ],
+  },
+  {
+    id: 5, title: 'Fa', subtitle: '1. aralık', newNotes: [FA4], questions: 30,
+    slides: [
+      { title: 'Fa – 1. aralık',
+        text: 'Şimdi aşağı iniyoruz. Sol’ün bir basamak altı, <b>1. ve 2. çizgi arasındaki aralık</b> Fa’dır.',
+        staff: { notes: [N(FA4), N(SOL4)], highlight: [FA4.step], numbers: true }, play: [FA4, SOL4] },
+    ],
+  },
+  {
+    id: 6, title: 'Mi', subtitle: '1. çizgi', newNotes: [MI4], questions: 30,
+    slides: [
+      { title: 'Mi – 1. çizgi',
+        text: 'Fa’nın bir basamak altı, en alttaki <b>1. çizgi</b> Mi’dir.',
+        staff: { notes: [N(MI4), N(FA4), N(SOL4)], highlight: [MI4.step], numbers: true }, play: [MI4, FA4, SOL4] },
+      { title: 'Mi’den Re’ye',
+        text: 'Mi’den başlayıp basamak basamak çık: <b>Mi Fa Sol La Si Do Re</b>.',
+        staff: { notes: [MI4, FA4, SOL4, LA4, SI4, DO5, RE5].map(x => N(x)) }, play: [MI4, FA4, SOL4, LA4, SI4, DO5, RE5] },
+    ],
+  },
+  {
+    id: 7, title: 'Üstteki Mi', subtitle: '4. aralık', newNotes: [MI5], questions: 30,
+    slides: [
+      { title: 'İkinci Mi – 4. aralık',
+        text: 'Re’nin bir basamak üstü yine <b>Mi</b>’dir: <b>4. aralıkta</b> durur. Alttaki Mi’den 8 basamak (bir <b>oktav</b>) yukarıda: aynı isim, daha ince ses.',
+        staff: { notes: [N(MI4), N(RE5), N(MI5)], highlight: [MI5.step], numbers: true }, play: [MI4, MI5] },
       { title: 'Aralıklar',
-        text: 'Aralıklardaki notalar: <b>Fa – La – Do – Mi</b>.',
+        text: 'Dört aralık alttan yukarı: <b>Fa – La – Do – Mi</b>.',
         staff: { notes: [FA4, LA4, DO5, MI5].map(x => N(x)), highlight: [FA4.step, LA4.step, DO5.step, MI5.step] } },
     ],
   },
   {
-    id: 7, title: 'Üstteki Sol ve La', subtitle: 'Üst ek çizgi', newNotes: [SOL5, LA5], questions: 30,
+    id: 8, title: 'Üstteki Fa', subtitle: '5. çizgi', newNotes: [FA5], questions: 30,
     slides: [
-      { title: 'Sol – portenin hemen üstü',
-        text: 'Fa’nın üstü Sol’dür: nota <b>5. çizginin üstüne oturur</b>.',
-        staff: { notes: [N(FA5), N(SOL5)], highlight: [SOL5.step] }, play: [FA5, SOL5] },
-      { title: 'La – üstteki ek çizgi',
-        text: 'Sol’ün üstü La’dır: <b>üstteki ilk ek çizginin</b> üzerine yazılır.',
-        staff: { notes: [N(FA5), N(SOL5), N(LA5)] }, play: [FA5, SOL5, LA5] },
+      { title: 'İkinci Fa – 5. çizgi',
+        text: 'En üstteki <b>5. çizgi</b> Fa’dır; alttaki Fa’nın (1. aralık) bir oktav üstü.',
+        staff: { notes: [N(FA4), N(MI5), N(FA5)], highlight: [FA5.step], numbers: true }, play: [FA4, FA5] },
+      { title: 'Çizgiler',
+        text: 'Beş çizgi alttan yukarı: <b>Mi – Sol – Si – Re – Fa</b>.',
+        staff: { notes: [MI4, SOL4, SI4, RE5, FA5].map(x => N(x)), highlight: [MI4.step, SOL4.step, SI4.step, RE5.step, FA5.step] } },
     ],
   },
   {
-    id: 8, title: 'Hepsi bir arada', subtitle: 'Tüm porte, karışık', newNotes: [], questions: 40,
+    id: 9, title: 'Alttaki Re', subtitle: 'Portenin hemen altı', newNotes: [RE4], questions: 30,
+    slides: [
+      { title: 'Re – portenin altı',
+        text: 'Mi’nin (1. çizgi) bir basamak altı Re’dir: nota <b>1. çizginin altına asılır</b>. Bağlamada <b>alt tel boşta</b> Re sesini verir. 4. çizgideki Re’nin bir oktav altıdır.',
+        staff: { notes: [N(RE4), N(MI4), N(RE5)], highlight: [RE4.step] }, play: [RE4, MI4, RE5] },
+    ],
+  },
+  {
+    id: 10, title: 'Alttaki Do', subtitle: 'Alt ek çizgi', newNotes: [DO4], questions: 30,
+    slides: [
+      { title: 'Do – alttaki ek çizgi',
+        text: 'Re’nin altı Do’dur. Porteye sığmadığı için <b>kendi kısa ek çizgisinin</b> üzerine yazılır.',
+        staff: { notes: [N(DO4), N(RE4), N(MI4)] }, play: [DO4, RE4, MI4] },
+      { title: 'Bir oktav tamam',
+        text: '<b>Do Re Mi Fa Sol La Si Do</b> — alttaki Do’dan 3. aralıktaki Do’ya bir oktav.',
+        staff: { notes: [DO4, RE4, MI4, FA4, SOL4, LA4, SI4, DO5].map(x => N(x)) }, play: [DO4, RE4, MI4, FA4, SOL4, LA4, SI4, DO5] },
+    ],
+  },
+  {
+    id: 11, title: 'Üstteki Sol', subtitle: 'Portenin hemen üstü', newNotes: [SOL5], questions: 30,
+    slides: [
+      { title: 'Sol – portenin üstü',
+        text: 'Fa’nın (5. çizgi) üstü Sol’dür: nota <b>5. çizginin üstüne oturur</b>. 2. çizgideki Sol’ün bir oktav üstü.',
+        staff: { notes: [N(SOL4), N(FA5), N(SOL5)], highlight: [SOL5.step] }, play: [SOL4, SOL5] },
+    ],
+  },
+  {
+    id: 12, title: 'Üstteki La', subtitle: 'Üst ek çizgi', newNotes: [LA5], questions: 30,
+    slides: [
+      { title: 'La – üstteki ek çizgi',
+        text: 'Sol’ün üstü La’dır: <b>üstteki ilk ek çizginin</b> üzerine yazılır. 2. aralıktaki La’nın bir oktav üstü.',
+        staff: { notes: [N(LA4), N(SOL5), N(LA5)] }, play: [LA4, LA5] },
+    ],
+  },
+  {
+    id: 13, title: 'Hepsi bir arada', subtitle: 'Tüm porte, karışık', newNotes: [], questions: 40, review: true,
     slides: [
       { title: 'Tekrar zamanı',
         text: 'Alttaki Do’dan üstteki La’ya kadar bütün notalar karışık sorulacak. Sınav 40 soru; geçmek için <b>%90 doğru</b>.',
@@ -134,7 +168,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 9, title: 'Diyez ve bemol', subtitle: '♯ inceltir, ♭ kalınlaştırır', newNotes: [n(3, 4, '#'), n(6, 4, 'b'), n(0, 5, '#'), n(2, 5, 'b')], questions: 30, accidentals: true,
+    id: 14, title: 'Diyez ve bemol', subtitle: '♯ inceltir, ♭ kalınlaştırır', newNotes: [n(3, 4, '#'), n(6, 4, 'b'), n(0, 5, '#'), n(2, 5, 'b')], questions: 30, accidentals: true,
     slides: [
       { title: 'Değiştirici işaretler',
         text: '<b>♯ (diyez)</b> notanın sesini yarım ses <b>inceltir</b>. <b>♭ (bemol)</b> yarım ses <b>kalınlaştırır</b>. İşaret, notanın <b>soluna, aynı çizgi ya da aralığa</b> yazılır. Notanın adı değişmez: “Fa diyez”, “Si bemol”.',
@@ -145,7 +179,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 10, title: 'Koma sesleri', subtitle: 'Türk müziğinin ara sesleri', newNotes: [n(6, 4, 'b2'), n(2, 5, 'b2'), n(3, 4, '#2'), n(0, 5, '#2'), n(5, 4, 'b2')], questions: 30, accidentals: true,
+    id: 15, title: 'Koma sesleri', subtitle: 'Türk müziğinin ara sesleri', newNotes: [n(6, 4, 'b2'), n(2, 5, 'b2'), n(3, 4, '#2'), n(0, 5, '#2'), n(5, 4, 'b2')], questions: 30, accidentals: true,
     slides: [
       { title: 'Yarım sesten küçük aralıklar',
         text: 'Türk müziğinde yarım sesten daha küçük aralıklar da kullanılır. Halk müziği notalarında işaretin yanındaki <b>sayı</b>, sesin yaklaşık <b>kaç koma</b> değiştiğini gösterir. <b>Si♭2</b> (“si bemol iki”), Si’den biraz kalın ama Si♭’den incedir.',
@@ -165,7 +199,7 @@ export function levelPool(levelId) {
     const isNew = L.id === levelId;
     L.newNotes.forEach(note => pool.push({ note, weight: isNew ? 3 : 1 }));
   }
-  if (levelId === 8) pool.forEach(p => p.weight = 1);
+  if (LEVELS.find(L => L.id === levelId)?.review) pool.forEach(p => p.weight = 1);
   return pool;
 }
 
