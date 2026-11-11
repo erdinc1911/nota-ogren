@@ -1,8 +1,19 @@
-// Sesle cevap verme. Üç olası altyapı:
-//  1) Claude artifact "dictation" yeteneği (sayfa claude.ai üzerinde açıkken)
-//  2) Tarayıcının Web Speech API'si (Chrome/Edge/Safari, tr-TR)
-//  3) (İleride) Android/Capacitor eklentisi – aynı arayüzü uygulaması yeterli.
-// Arayüz: { available, kind, start(), stop(), listening, onText(cb), onState(cb) }
+// Sesle cevap verme. Altyapılar (öncelik sırasıyla):
+//  1) Claude artifact "dictation" yeteneği (sayfa claude.ai içinde açıldıysa)
+//  2) Vosk – cihazda çalışan Türkçe ses tanıma (WebAssembly). Her tarayıcıda (Brave dahil)
+//     çalışır; yalnızca nota sözcüklerini dinler. İlk kullanımda ~35 MB model indirilir.
+//  3) Tarayıcının Web Speech API'si (Vosk yüklenemezse yedek)
+// Arayüz: { available, kind, listening, reason, start(), stop(), onText(cb), onState(cb) }
+
+const VOSK_JS = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
+const VOSK_MODEL = 'model/vosk-tr.tar.gz';
+const NOTES = ['do', 're', 'mi', 'fa', 'sol', 'la', 'si'];
+// Modelin sözlüğünde "diyez" yok; en yakın sözcük "diyet" (theory.js bunu diyez sayar)
+const GRAMMAR = JSON.stringify([
+  ...NOTES,
+  ...NOTES.flatMap(n => [`${n} bemol`, `${n} bemol iki`, `${n} koma bemol`, `${n} diyet`, `${n} diyet iki`]),
+  '[unk]',
+]);
 
 export function createSpeech() {
   const textCbs = [], stateCbs = [];
@@ -18,67 +29,123 @@ export function createSpeech() {
     stateCbs.forEach(cb => cb({ listening, info, available: api.available, kind: api.kind }));
   };
 
-  // --- 2) Web Speech API ---
+  // ---------------------------------------------------------------- Vosk
+  let voskModel = null, voskLoading = null, rec = null, audio = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      if (window.Vosk) return res();
+      const s = document.createElement('script');
+      s.src = src; s.onload = () => res(); s.onerror = () => rej(new Error('script'));
+      document.head.appendChild(s);
+    });
+  }
+  function loadVosk() {
+    if (voskModel) return Promise.resolve(voskModel);
+    if (!voskLoading) {
+      voskLoading = (async () => {
+        setState(true, 'Ses tanıma hazırlanıyor… (ilk seferde ~35 MB indirilir, biraz bekle)');
+        await loadScript(VOSK_JS);
+        const url = new URL(VOSK_MODEL, location.href).href;
+        voskModel = await window.Vosk.createModel(url);
+        return voskModel;
+      })().catch(e => { voskLoading = null; throw e; });
+    }
+    return voskLoading;
+  }
+  async function voskStart() {
+    try {
+      // mikrofonu hemen iste (tıklamanın hemen ardından)
+      const streamP = navigator.mediaDevices.getUserMedia({
+        video: false, audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      });
+      const [model, stream] = await Promise.all([loadVosk(), streamP]);
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') await ctx.resume();
+      rec = new model.KaldiRecognizer(ctx.sampleRate, GRAMMAR);
+      rec.on('result', (m) => {
+        const t = (m && m.result && m.result.text || '').replace(/\[unk\]/g, '').trim();
+        if (t) emitText(t);
+      });
+      const src = ctx.createMediaStreamSource(stream);
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      node.onaudioprocess = (e) => { try { rec && rec.acceptWaveform(e.inputBuffer); } catch {} };
+      src.connect(node);
+      node.connect(ctx.destination); // bazı tarayıcılar bağlı olmayan işlemciyi çalıştırmaz
+      audio = { ctx, stream, src, node };
+      setState(true, 'Dinliyorum. Notayı söyle: “sol”, “la”…');
+    } catch (e) {
+      voskStop(true);
+      const name = e && e.name;
+      if (name === 'NotAllowedError' || name === 'SecurityError') setState(false, 'Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden mikrofona izin ver.');
+      else if (name === 'NotFoundError') setState(false, 'Mikrofon bulunamadı.');
+      else if (useWebSpeechFallback()) { setState(false, 'Cihazda ses tanıma yüklenemedi; tarayıcının ses tanıması kullanılacak. 🎤’ya tekrar bas.'); }
+      else setState(false, 'Ses tanıma yüklenemedi. İnternet bağlantını kontrol edip tekrar dene.');
+    }
+  }
+  function voskStop(silent = false) {
+    if (audio) {
+      try { audio.node.disconnect(); audio.src.disconnect(); } catch {}
+      audio.stream.getTracks().forEach(t => t.stop());
+      audio.ctx.close().catch(() => {});
+      audio = null;
+    }
+    if (rec) { try { rec.remove(); } catch {} rec = null; }
+    if (!silent) setState(false);
+  }
+  function useVosk() {
+    api.available = true; api.kind = 'vosk'; api.pushToTalk = false;
+    api.start = () => { voskStart(); };
+    api.stop = () => voskStop();
+  }
+
+  // ---------------------------------------------------------------- Web Speech (yedek)
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null, wantOn = false;
+  let wrec = null, wantOn = false;
   function useWebSpeech() {
     api.available = true; api.kind = 'webspeech';
-    // Dosyadan açılınca izin her başlatmada sorulur: her cevap için bir kez bas-konuş
     api.pushToTalk = location.protocol === 'file:';
     let quickEnds = 0, startedAt = 0, gotResult = false;
-    const fail = (msg) => { wantOn = false; try { rec && rec.abort(); } catch {} setState(false, msg); };
+    const fail = (msg) => { wantOn = false; try { wrec && wrec.abort(); } catch {} setState(false, msg); };
     api.start = () => {
       wantOn = true; quickEnds = 0;
-      if (!rec) {
-        rec = new SR();
-        rec.lang = 'tr-TR';
-        rec.continuous = !api.pushToTalk;
-        rec.interimResults = false;
-        rec.maxAlternatives = 5;
-        rec.onstart = () => { startedAt = Date.now(); gotResult = false; };
-        rec.onresult = (e) => {
+      if (!wrec) {
+        wrec = new SR();
+        wrec.lang = 'tr-TR';
+        wrec.continuous = !api.pushToTalk;
+        wrec.interimResults = false;
+        wrec.maxAlternatives = 5;
+        wrec.onstart = () => { startedAt = Date.now(); gotResult = false; };
+        wrec.onresult = (e) => {
           gotResult = true; quickEnds = 0;
           for (let i = e.resultIndex; i < e.results.length; i++) {
             if (!e.results[i].isFinal) continue;
-            const alts = Array.from(e.results[i]).map(a => a.transcript);
-            emitText(alts.join(' | '));
+            emitText(Array.from(e.results[i]).map(a => a.transcript).join(' | '));
           }
         };
-        rec.onend = () => {
+        wrec.onend = () => {
           if (!wantOn) { setState(false); return; }
-          // hiç sonuç gelmeden hemen bittiyse art arda yeniden başlatma (izin penceresi döngüsü olmasın)
-          if (!gotResult && Date.now() - startedAt < 1500 && ++quickEnds >= 2) {
-            fail('Dinleme başlatılamadı. Tekrar denemek için 🎤 düğmesine bas.'); return;
-          }
-          // Dosyadan (file://) açıldığında tarayıcı izni hatırlamaz; her yeniden başlatmada
-          // tekrar sorar. Bu durumda otomatik yeniden başlatma yapma.
+          if (!gotResult && Date.now() - startedAt < 1500 && ++quickEnds >= 2) { fail('Dinleme başlatılamadı. Tekrar denemek için 🎤 düğmesine bas.'); return; }
           if (api.pushToTalk) { wantOn = false; setState(false); return; }
-          try { rec.start(); } catch { setState(false); }
+          try { wrec.start(); } catch { setState(false); }
         };
-        rec.onerror = (e) => {
-          if (e.error === 'service-not-allowed') fail('Bu tarayıcı burada ses tanıma hizmetine izin vermiyor (Brave dosyadan açılınca böyle). Uygulamayı bağlantısından aç ya da Chrome/Edge kullan.');
-          else if (e.error === 'not-allowed') fail(location.protocol === 'file:'
-            ? 'Mikrofon kullanılamadı. Dosyadan açınca bazı tarayıcılar (Brave) izin vermiyor: uygulamayı bağlantısından aç ya da Chrome/Edge kullan.'
-            : 'Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden mikrofona izin ver.');
-          else if (e.error === 'network') fail('Ses tanıma hizmetine ulaşılamadı (internet bağlantısı gerekir; bazı tarayıcılar bu hizmeti engeller).');
+        wrec.onerror = (e) => {
+          if (e.error === 'service-not-allowed' || e.error === 'network') fail('Bu tarayıcının ses tanıma hizmetine ulaşılamadı. Chrome ya da Edge dene.');
+          else if (e.error === 'not-allowed') fail('Mikrofon izni verilmedi.');
           else if (e.error === 'audio-capture') fail('Mikrofon bulunamadı.');
         };
       }
-      try { rec.start(); setState(true); } catch { setState(true); }
+      try { wrec.start(); setState(true); } catch { setState(true); }
     };
-    api.stop = () => { wantOn = false; try { rec && rec.stop(); } catch {} setState(false); };
+    api.stop = () => { wantOn = false; try { wrec && wrec.stop(); } catch {} setState(false); };
   }
+  function useWebSpeechFallback() { if (!SR) return false; useWebSpeech(); return true; }
 
-  // --- 1) Claude dictation ---
-  let dict = null;
+  // ---------------------------------------------------------------- Claude dikte
   function useDictation(d) {
-    dict = d;
-    api.available = true; api.kind = 'dictation';
-    // Bazı tanıyıcılar biriken metnin tamamını gönderir: yalnızca yeni kısmı al.
+    api.available = true; api.kind = 'dictation'; api.reason = ''; api.pushToTalk = false;
     let prev = '';
     d.onFinal(({ text }) => {
       const t = (text || '').trim();
-      // yalnızca metin gerçekten uzamışsa birikmiş say; aynı sözcüğü ikinci kez söylemek yeni cevaptır
       const grew = prev && t.length > prev.length && t.toLowerCase().startsWith(prev.toLowerCase());
       const fresh = grew ? t.slice(prev.length) : t;
       prev = t;
@@ -97,16 +164,18 @@ export function createSpeech() {
     api.stop = () => { d.stop().catch(() => {}); };
   }
 
-  // claude.ai içinde açıldıysa (bağlantı) tarayıcı ses tanıması çerçevede çalışmaz: yalnızca dikte kullan
+  // ---------------------------------------------------------------- seçim
   const inClaude = !!(window.claude && typeof window.claude.use === 'function');
-  if (SR && !inClaude) useWebSpeech();
-  else api.reason = 'Bu tarayıcı sesle cevabı desteklemiyor (Chrome ya da Edge kullan).';
-  if (window.claude && typeof window.claude.use === 'function') {
-    window.claude.use('dictation').then(d => {
-      if (d) { api.reason = ''; useDictation(d); setState(false); }
-    }).catch(() => {});
+  const canVosk = location.protocol.startsWith('http') && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof WebAssembly === 'object';
+  if (inClaude) {
+    window.claude.use('dictation').then(d => { if (d) { useDictation(d); setState(false); } }).catch(() => {});
+  } else if (canVosk) {
+    useVosk();
+  } else if (SR) {
+    useWebSpeech();
+  } else {
+    api.reason = 'Bu tarayıcıda sesle cevap kullanılamıyor; tuşlarla devam edebilirsin.';
   }
-  // İlk durum bildirimi
   setTimeout(() => setState(false), 0);
   return api;
 }

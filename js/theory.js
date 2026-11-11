@@ -97,7 +97,7 @@ const NOTE_WORDS = [
   [6, ['si', 'sı', 'sii', 'see', 'sea', 'ci', 'si̇', 'c', 'she', 'sı̇']],
 ];
 const FLAT_WORDS = ['bemol', 'bemöl', 'bemo', 'bemole', 'bemoll', 'flat', 'bimol', 'bemul'];
-const SHARP_WORDS = ['diyez', 'diez', 'dies', 'diyes', 'diyezi', 'sharp', 'diyaz', 'dyez'];
+const SHARP_WORDS = ['diyez', 'diez', 'dies', 'diyes', 'diyezi', 'sharp', 'diyaz', 'dyez', 'diye', 'dize'];
 const KOMA_WORDS = ['koma', 'comma', 'kuma'];
 const NUM_WORDS = { 'bir': 1, '1': 1, 'iki': 2, 'ıki': 2, '2': 2, 'two': 2, 'üç': 3, 'uc': 3, 'üc': 3, '3': 3, 'dört': 4, 'dort': 4, '4': 4, 'beş': 5, '5': 5 };
 
