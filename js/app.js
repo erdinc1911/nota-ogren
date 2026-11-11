@@ -231,7 +231,7 @@ function renderPractice(body, { pool, letters, accs, title }) {
 
 // ---- Sınav (mode: 'oku' = nota adını söyle/seç, 'koy' = porteye yerleştir)
 const PASS_PCT = 90;
-function buildDeck(pool, n) {
+function buildDeck(pool, n, noRepeatUntil = n) {
   // her nota ağırlığı oranında, toplam n soru; yanlış yapılanlara biraz ek ağırlık
   const w = pool.map(p => p.weight * (1 + 0.5 * Math.min(4, store.getMiss(keyOf(p.note)))));
   const sum = w.reduce((a, b) => a + b, 0);
@@ -239,24 +239,28 @@ function buildDeck(pool, n) {
   let total = counts.reduce((a, b) => a + b, 0);
   while (total > n) { const i = counts.indexOf(Math.max(...counts)); counts[i]--; total--; }
   while (total < n) { counts[Math.floor(Math.random() * counts.length)]++; total++; }
-  let deck = [];
-  pool.forEach((p, i) => { for (let k = 0; k < counts[i]; k++) deck.push(p.note); });
-  // karıştır; aynı nota üst üste en fazla 2 kez
-  for (let tries = 0; tries < 30; tries++) {
-    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-    let ok = true;
-    for (let i = 2; i < deck.length; i++) if (keyOf(deck[i]) === keyOf(deck[i - 1]) && keyOf(deck[i]) === keyOf(deck[i - 2])) { ok = false; break; }
-    if (ok) break;
+  // sırayla seç: ilk `noRepeatUntil` soruda aynı nota art arda gelmez,
+  // sonrasında (yan yana gruplarda) en fazla 2 kez art arda
+  const deck = [];
+  for (let k = 0; k < n; k++) {
+    const prev = deck[k - 1], prev2 = deck[k - 2];
+    const banned = (i) => k < noRepeatUntil ? i === prev : (i === prev && i === prev2);
+    let cand = counts.map((c, i) => (c > 0 && !banned(i)) ? c : 0);
+    if (cand.every(c => c === 0)) cand = counts.slice();
+    let r = Math.random() * cand.reduce((a, b) => a + b, 0), pick = 0;
+    for (let i = 0; i < cand.length; i++) { r -= cand[i]; if (r <= 0 && cand[i] > 0) { pick = i; break; } }
+    counts[pick]--; deck.push(pick);
   }
-  return deck.map(note => ({ note, retry: false }));
+  return deck.map(i => ({ note: pool[i].note, retry: false }));
 }
 
-// Soru sayısı: nota başına 5 (en az 10, en çok 40). Grup: ilk seviyelerde tek nota,
-// sonra aynı portede yan yana 3–4 nota (soldan sağa okunur).
+// Soru sayısı: nota başına 5 (en az 10, en çok 40). Okuma sınavı birkaç tek notayla
+// (ısınma) başlar, sonra aynı portede yan yana 3–4 nota gelir (soldan sağa okunur).
+const WARM = 4;
 function testSize(L, poolLen, mode) {
-  const g = mode === 'oku' ? (L.id <= 4 ? 1 : L.id <= 8 || L.accidentals ? 3 : 4) : 1;
+  const g = mode === 'oku' ? (L.accidentals || L.id <= 2 ? 3 : 4) : 1;
   let n = Math.max(10, Math.min(40, poolLen * 5));
-  n = Math.round(n / g) * g;
+  if (g > 1) n = WARM + Math.max(1, Math.round((n - WARM) / g)) * g;
   return { n, g };
 }
 
@@ -292,25 +296,26 @@ function renderTest(L, body, mode = 'oku') {
     if (mode === 'koy') return;
     const notes = group.map((it, i) => {
       if (i < gi) return { ...it.note, label: noteName(it.note), cls: it.ok ? 'ok' : 'okq' };
-      if (i === gi && G > 1) return { ...it.note, label: '?', cls: 'cur' };
+      if (i === gi && group.length > 1) return { ...it.note, label: '?', cls: 'cur' };
       return { ...it.note };
     });
     renderStaff(svg, notes.concat(extra), { width: staffWidth(), highlight });
   };
   const start = () => {
-    deck = buildDeck(pool, N); pos = 0; answered = 0; correct = 0; misses = {};
+    deck = buildDeck(pool, N, G > 1 ? WARM + 1 : N); pos = 0; answered = 0; correct = 0; misses = {};
     $('.passed-banner', body).hidden = true;
     next();
   };
   const next = () => {
     if (pos >= deck.length) return finishTest();
     locked = false;
-    group = deck.slice(pos, pos + G); pos += group.length; gi = 0;
+    const size = (G > 1 && pos < WARM) ? 1 : G;
+    group = deck.slice(pos, pos + size); pos += group.length; gi = 0;
     $('.feedback', body).innerHTML = ''; $('.feedback', body).className = 'feedback';
     $('.next', body).hidden = true;
     if (mode === 'oku') {
       drawGroup();
-      $('.prompt', body).innerHTML = G > 1
+      $('.prompt', body).innerHTML = group.length > 1
         ? 'Notaları <b>soldan sağa</b> oku <span class="muted">işaretli nota sıradaki</span>'
         : (cur().retry ? 'Bu nota hangisi? <span class="muted">(az önce karıştırdığın nota)</span>' : 'Bu nota hangisi?');
     } else {
@@ -343,7 +348,7 @@ function renderTest(L, body, mode = 'oku') {
       return;                                  // aynı soruda kal
     }
     // doğru
-    if (G === 1 || mode === 'koy') blip(true);
+    if (group.length === 1) blip(true);
     later(() => playCents(q.cents), 100);
     gi++;
     fb.className = 'feedback good';
@@ -353,8 +358,8 @@ function renderTest(L, body, mode = 'oku') {
     progress();
     if (gi < group.length) return;             // grupta sıradaki notaya geç
     locked = true;
-    if (G > 1) blip(group.every(x => x.ok));
-    later(next, G > 1 ? 1100 : 900);
+    if (group.length > 1) blip(group.every(x => x.ok));
+    later(next, group.length > 1 ? 1100 : 900);
   };
   const finishTest = () => {
     if (speech.listening) speech.stop();
@@ -444,7 +449,7 @@ function renderSolfej(L, body) {
     $('.bar i', body).style.width = Math.round(100 * (pos - 1) / N) + '%';
     $('.ptext', body).textContent = `Nota ${Math.min(pos, N)} / ${N} · başarılı ${ok}`;
   };
-  const start = () => { deck = buildDeck(pool, N); pos = 0; ok = 0; skipped = 0; devs = []; $('.passed-banner', body).hidden = true; next(); };
+  const start = () => { deck = buildDeck(pool, N, N); pos = 0; ok = 0; skipped = 0; devs = []; $('.passed-banner', body).hidden = true; next(); };
   const next = () => {
     if (pos >= deck.length) return finish();
     q = deck[pos++].note; hold = 0; hist = []; locked = false;
