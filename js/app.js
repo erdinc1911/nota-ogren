@@ -262,16 +262,19 @@ function buildDeck(pool, n, noRepeatUntil = n) {
 // Soru sayısı: nota başına 5 (en az 10, en çok 40). Okuma sınavı birkaç tek notayla
 // (ısınma) başlar, sonra aynı portede yan yana 3–4 nota gelir (soldan sağa okunur).
 const WARM = 4;
+// Isınma (tek tek sorular) yalnızca ilk seviyede; diğerleri doğrudan yan yana başlar.
+const warmFor = (L, g) => (g > 1 && L.id === 1 ? WARM : 0);
 function testSize(L, poolLen, mode) {
   const g = mode === 'oku' ? (L.accidentals || L.id <= 2 ? 3 : 4) : 1;
+  const w = warmFor(L, g);
   let n = Math.max(10, Math.min(40, poolLen * 5));
-  if (g > 1) n = WARM + Math.max(1, Math.round((n - WARM) / g)) * g;
-  return { n, g };
+  if (g > 1) n = w + Math.max(1, Math.round((n - w) / g)) * g;
+  return { n, g, w };
 }
 
 function renderTest(L, body, mode = 'oku') {
   const pool = levelPool(L.id);
-  const { n: N, g: G } = testSize(L, pool.length, mode);
+  const { n: N, g: G, w: W } = testSize(L, pool.length, mode);
   const letters = [...new Set(pool.map(p => p.note.letter))].sort((a, b) => a - b);
   const ORDER = ['b', 'b2', '', '#2', '#'];
   const accs = L.accidentals ? [...new Set(['', ...pool.map(p => p.note.acc)])].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)) : [''];
@@ -307,14 +310,14 @@ function renderTest(L, body, mode = 'oku') {
     renderStaff(svg, notes.concat(extra), { width: staffWidth(), highlight });
   };
   const start = () => {
-    deck = buildDeck(pool, N, G > 1 ? WARM + 1 : N); pos = 0; answered = 0; correct = 0; misses = {};
+    deck = buildDeck(pool, N, G > 1 ? W + 1 : N); pos = 0; answered = 0; correct = 0; misses = {};
     $('.passed-banner', body).hidden = true;
     next();
   };
   const next = () => {
     if (pos >= deck.length) return finishTest();
     locked = false;
-    const size = (G > 1 && pos < WARM) ? 1 : G;
+    const size = (G > 1 && pos < W) ? 1 : G;
     group = deck.slice(pos, pos + size); pos += group.length; gi = 0;
     $('.feedback', body).innerHTML = ''; $('.feedback', body).className = 'feedback';
     $('.next', body).hidden = true;
