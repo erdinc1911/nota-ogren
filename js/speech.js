@@ -87,48 +87,66 @@ export function createSpeech() {
       }
       if (ctx.state === 'suspended') await ctx.resume();
 
-      // Her nota ayrı bir "konuşma": bir nota yakalanınca tanıyıcı sıfırlanır.
-      // Böylece motorun eski sözcükleri yeniden düzeltmesi yeni notayı yutmaz.
-      let partial = '', timer = null;
-      const makeRec = () => {
-        const r = new model.KaldiRecognizer(ctx.sampleRate, grammarFor(api.sensitivity));
+      // Ses tonu uyumu: aynı sesi birkaç tanıyıcıya veriyoruz. İlki olduğu gibi duyar;
+      // diğerlerine örnekleme hızı olduğundan yüksek bildirilir, böylece ses (perde ve
+      // formantlar) kalınlaşmış gibi algılanır. İnce/yüksek sesle söylenen notalar da
+      // modelin eğitildiği konuşma aralığına düşer. Hangisi önce yakalarsa o kabul edilir.
+      const FACTORS = (navigator.hardwareConcurrency || 2) >= 4 ? [1, 1.25, 1.55] : [1, 1.35];
+      let recs = [], timer = null, timerText = '';
+      const makeRec = (f) => {
+        const r = new model.KaldiRecognizer(Math.round(ctx.sampleRate * f), grammarFor(api.sensitivity));
+        r.factor = f; r.partial = '';
         r.on('partialresult', (m) => {
-          if (r !== rec) return;
+          if (!recs.includes(r)) return;
           const p = (m && m.result && m.result.partial || '').trim();
-          if (p === partial) return;
-          partial = p;
-          clearTimeout(timer);
-          if (noteGroups(p).length) timer = setTimeout(() => take(p), STABLE_MS);
+          if (p === r.partial) return;
+          r.partial = p;
+          if (noteGroups(p).length) {
+            clearTimeout(timer); timerText = p;
+            timer = setTimeout(() => take(timerText), STABLE_MS);
+          }
         });
         r.on('result', (m) => {
-          if (r !== rec) return;
-          clearTimeout(timer);
+          if (!recs.includes(r)) return;
           const t = (m && m.result && m.result.text) || '';
-          partial = '';
-          if (noteGroups(t).length) noteGroups(t).forEach(emitText);
-          else if (t.trim()) setState(true, 'Ses duyuldu ama anlaşılamadı — nota adını net söyle.');
+          r.partial = '';
+          if (noteGroups(t).length) { clearTimeout(timer); take(t); }
+          else if (t.trim() && r.factor === 1) setState(true, 'Ses duyuldu ama anlaşılamadı — nota adını net söyle.');
         });
         return r;
       };
-      const take = (text) => {
-        noteGroups(text).forEach(emitText);
-        partial = '';
-        const old = rec;
-        rec = makeRec();
-        try { old && old.remove(); } catch {}
+      const resetAll = () => {
+        const old = recs;
+        recs = FACTORS.map(makeRec);
+        rec = recs[0];
+        old.forEach(r => { try { r.remove(); } catch {} });
       };
-      rec = makeRec();
+      // Her nota ayrı bir "konuşma": bir nota yakalanınca tüm tanıyıcılar sıfırlanır.
+      const take = (text) => { clearTimeout(timer); noteGroups(text).forEach(emitText); resetAll(); };
+      resetAll();
+      api._recs = () => recs;
 
       const node = ctx.createScriptProcessor(4096, 1, 1);
       let lastLevelAt = 0;
       node.onaudioprocess = (e) => {
-        try { rec && rec.acceptWaveform(e.inputBuffer); } catch {}
+        const inb = e.inputBuffer;
+        const data = inb.getChannelData(0);
+        for (const r of recs) {
+          try {
+            if (r.factor === 1) r.acceptWaveform(inb);
+            else if (typeof r.acceptWaveformFloat === 'function') r.acceptWaveformFloat(data, Math.round(inb.sampleRate * r.factor));
+            else {
+              const b = new AudioBuffer({ length: inb.length, numberOfChannels: 1, sampleRate: Math.round(inb.sampleRate * r.factor) });
+              b.copyToChannel(data, 0);
+              r.acceptWaveform(b);
+            }
+          } catch {}
+        }
         const now = performance.now();
         if (levelCbs.length && now - lastLevelAt > 60) {
           lastLevelAt = now;
-          const d = e.inputBuffer.getChannelData(0);
-          let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * d[i];
-          levelCbs.forEach(cb => cb(Math.min(1, Math.sqrt(sum / (d.length / 4)) * 5)));
+          let sum = 0; for (let i = 0; i < data.length; i += 4) sum += data[i] * data[i];
+          levelCbs.forEach(cb => cb(Math.min(1, Math.sqrt(sum / (data.length / 4)) * 5)));
         }
       };
       src.connect(node);
@@ -152,7 +170,8 @@ export function createSpeech() {
       audio.ctx.close().catch(() => {});
       audio = null;
     }
-    if (rec) { try { rec.remove(); } catch {} rec = null; }
+    if (api._recs) { api._recs().forEach(r => { try { r.remove(); } catch {} }); api._recs = null; }
+    rec = null;
     if (!silent) setState(false);
   }
   function useVosk() {
