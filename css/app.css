@@ -61,7 +61,7 @@ button:disabled { opacity: .4; cursor: default; }
 .lesson-head h2 { font-family: var(--display); margin: 0; font-size: 1.3rem; display: flex; align-items: center; gap: 8px; }
 .lv-badge { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-grid; place-items: center; font-size: 1rem; }
 .back { background: none; border: 0; color: var(--muted); padding: 4px 0; font-weight: 600; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: #eadfcc; border-radius: 999px; padding: 4px; margin: 12px 0; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: #eadfcc; border-radius: 999px; padding: 4px; margin: 12px 0; }
 .seg button { border: 0; background: none; border-radius: 999px; padding: 8px 4px; font-weight: 700; color: var(--muted); }
 .seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 .lesson-body { margin-top: 12px; }
@@ -151,3 +151,4 @@ button:disabled { opacity: .4; cursor: default; }
 .field-s { display: grid; gap: 6px; font-weight: 600; }
 .field-s select { font: inherit; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
 .mic-btn[hidden] + .level { display: none; }
+@media (max-width: 420px) { .seg button { font-size: .85rem; padding: 8px 2px; } }

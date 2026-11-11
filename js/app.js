@@ -125,7 +125,7 @@ function renderHome() {
 
 // ------------------------------------------------------------- ders ekranı
 function lessonShell(L, tab) {
-  const tabs = L.intro ? [] : [['ogren', 'Öğren'], ['alistir', 'Alıştır'], ['sinav', 'Sınav']];
+  const tabs = L.intro ? [] : [['ogren', 'Öğren'], ['alistir', 'Alıştır'], ['sinav', 'Sınav'], ...(L.accidentals ? [] : [['koy', 'Porteye koy']])];
   view.innerHTML = `
     <section class="lesson">
       <div class="lesson-head">
@@ -227,64 +227,83 @@ function renderPractice(body, { pool, letters, accs, title }) {
   $('.clear', body).addEventListener('click', () => { shown = []; draw(); info('&nbsp;'); });
 }
 
-// ---- Sınav
-function renderTest(L, body) {
+// ---- Sınav (mode: 'oku' = nota adını söyle/seç, 'koy' = porteye yerleştir)
+const PASS_PCT = 90;
+function buildDeck(pool, n) {
+  // her nota ağırlığı oranında, toplam n soru; yanlış yapılanlara biraz ek ağırlık
+  const w = pool.map(p => p.weight * (1 + 0.5 * Math.min(4, store.getMiss(keyOf(p.note)))));
+  const sum = w.reduce((a, b) => a + b, 0);
+  const counts = w.map(x => Math.max(1, Math.round(n * x / sum)));
+  let total = counts.reduce((a, b) => a + b, 0);
+  while (total > n) { const i = counts.indexOf(Math.max(...counts)); counts[i]--; total--; }
+  while (total < n) { counts[Math.floor(Math.random() * counts.length)]++; total++; }
+  let deck = [];
+  pool.forEach((p, i) => { for (let k = 0; k < counts[i]; k++) deck.push(p.note); });
+  // karıştır; aynı nota üst üste en fazla 2 kez
+  for (let tries = 0; tries < 30; tries++) {
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+    let ok = true;
+    for (let i = 2; i < deck.length; i++) if (keyOf(deck[i]) === keyOf(deck[i - 1]) && keyOf(deck[i]) === keyOf(deck[i - 2])) { ok = false; break; }
+    if (ok) break;
+  }
+  return deck.map(note => ({ note, retry: false }));
+}
+
+function renderTest(L, body, mode = 'oku') {
   const pool = levelPool(L.id);
+  const N = L.questions || 30;
   const letters = [...new Set(pool.map(p => p.note.letter))].sort((a, b) => a - b);
-  const accs = L.accidentals ? [...new Set(['', ...pool.map(p => p.note.acc)])].sort((a, b) => ['b', 'b2', '', '#2', '#'].indexOf(a) - ['b', 'b2', '', '#2', '#'].indexOf(b)) : [''];
-  const canPlace = !L.accidentals;
-  let streak = 0, q = null, type = 'oku', locked = false, lastKey = null, total = 0, ok = 0;
+  const ORDER = ['b', 'b2', '', '#2', '#'];
+  const accs = L.accidentals ? [...new Set(['', ...pool.map(p => p.note.acc)])].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)) : [''];
+  const bestKey = mode === 'oku' ? L.id : `koy-${L.id}`;
+  let deck, pos, answered, correct, q, item, locked, misses;
 
   body.innerHTML = `
     <div class="test">
       <div class="progress"><div class="bar"><i></i></div><span class="ptext"></span></div>
-      <div class="staff-box"><svg class="staff"></svg></div>
+      <div class="staff-box ${mode === 'koy' ? 'tap' : ''}"><svg class="staff"></svg></div>
       <p class="prompt"></p>
       <div class="feedback" aria-live="polite"></div>
-      <div class="row-btns"><button class="ghost-btn listen">🔊 Dinle</button><button class="primary-btn next" hidden>Devam →</button></div>
-      ${padHTML({ letters, accs })}
+      <div class="row-btns">${mode === 'oku' ? '<button class="ghost-btn listen">🔊 Dinle</button>' : ''}<button class="primary-btn next" hidden>Devam →</button></div>
+      ${mode === 'oku' ? padHTML({ letters, accs }) : ''}
       <div class="passed-banner" hidden></div>
     </div>`;
   const svg = $('.staff', body);
-  const pad = $('.pad', body);
   const progress = () => {
-    const pct = Math.min(100, Math.round(100 * streak / L.target));
-    $('.bar i', body).style.width = pct + '%';
-    $('.ptext', body).textContent = `Üst üste ${streak} / ${L.target} doğru` + (store.getBest(L.id) ? ` · en iyi ${store.getBest(L.id)}` : '');
+    $('.bar i', body).style.width = Math.round(100 * answered / N) + '%';
+    const best = store.getBest(bestKey);
+    $('.ptext', body).textContent = `Soru ${Math.min(answered + 1, N)} / ${N} · doğru ${correct}` +
+      (item && item.retry ? ' · tekrar sorusu' : '') + (best ? ` · en iyi %${best}` : '');
   };
-  const pick = () => {
-    // aynı nota art arda gelebilir ama daha az olası (yoksa 2 notada sıra ezberlenir)
-    const items = pool;
-    const w = items.map(p => p.weight * (1 + 2 * store.getMiss(keyOf(p.note))) * (keyOf(p.note) === lastKey ? 0.35 : 1));
-    let r = Math.random() * w.reduce((a, b) => a + b, 0);
-    for (let k = 0; k < items.length; k++) { r -= w[k]; if (r <= 0) return items[k].note; }
-    return items[items.length - 1].note;
+  const start = () => {
+    deck = buildDeck(pool, N); pos = 0; answered = 0; correct = 0; misses = {};
+    $('.passed-banner', body).hidden = true;
+    next();
   };
   const next = () => {
+    if (pos >= deck.length) return finishTest();
     locked = false;
-    q = pick(); lastKey = keyOf(q);
-    type = canPlace && Math.random() < 0.3 ? 'koy' : 'oku';
+    item = deck[pos++]; q = item.note;
     $('.feedback', body).innerHTML = ''; $('.feedback', body).className = 'feedback';
     $('.next', body).hidden = true;
-    $('.listen', body).hidden = type === 'koy';
-    if (type === 'oku') {
+    if (mode === 'oku') {
       renderStaff(svg, [q], { width: staffWidth() });
-      $('.prompt', body).innerHTML = 'Bu nota hangisi?';
-      pad.hidden = false;
-      svg.parentElement.classList.remove('tap');
+      $('.prompt', body).innerHTML = item.retry ? 'Bu nota hangisi? <span class="muted">(az önce karıştırdığın nota)</span>' : 'Bu nota hangisi?';
     } else {
       renderStaff(svg, [], { width: staffWidth() });
-      $('.prompt', body).innerHTML = `<b>${noteName(q)}</b> notasını porteye koy <span class="muted">(doğru çizgiye ya da aralığa dokun)</span>`;
-      pad.hidden = true;
-      svg.parentElement.classList.add('tap');
+      $('.prompt', body).innerHTML = `<b>${noteName(q)}</b> notasını porteye koy <span class="muted">doğru çizgiye ya da aralığa dokun</span>`;
     }
     progress();
   };
-  const finish = (good, givenText, givenNote) => {
-    locked = true; total++;
-    if (good) { ok++; streak++; } else streak = 0;
+  const judge = (good, givenText, givenNote) => {
+    locked = true;
+    if (!item.retry) { answered++; if (good) correct++; }
+    if (!good) {
+      misses[noteName(q)] = (misses[noteName(q)] || 0) + 1;
+      // birkaç soru sonra yeniden sor (puana sayılmaz)
+      deck.splice(Math.min(deck.length, pos + 3), 0, { note: q, retry: true });
+    }
     store.recordAnswer(keyOf(q), good);
-    store.setBest(L.id, streak);
     blip(good);
     later(() => playCents(q.cents), 150);
     const notes = [{ ...q, label: noteName(q), cls: good ? 'ok' : 'okq' }];
@@ -296,40 +315,56 @@ function renderTest(L, body) {
       ? `✓ Doğru! <b class="big">${noteName(q)}</b> <span class="muted">${placeName(q.step)}</span>`
       : `✗ ${givenText} değil. Bu <b class="big">${noteName(q)}</b> <span class="muted">— ${placeName(q.step)}</span>`;
     progress();
-    if (streak === L.target) { store.pass(L.id); showPassed(); return; }
-    if (good) later(next, 1000);
+    if (good) later(next, 900);
     else $('.next', body).hidden = false;
   };
-  const showPassed = () => {
+  const finishTest = () => {
+    if (speech.listening) speech.stop();
+    const pct = Math.round(100 * correct / N);
+    store.setBest(bestKey, pct);
+    const passed = pct >= PASS_PCT;
+    if (passed && mode === 'oku') store.pass(L.id);
     const nextL = LEVELS.find(x => x.id === L.id + 1);
+    const missList = Object.entries(misses).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<b>${k}</b> (${v})`).join(', ');
     const b = $('.passed-banner', body);
     b.hidden = false;
-    b.innerHTML = `<div class="pb-card"><div class="pb-emoji">🎉</div><h3>Seviye ${L.id} tamam!</h3>
-      <p>${L.target} doğru üst üste. ${nextL ? `<b>Seviye ${nextL.id}: ${nextL.title}</b> açıldı.` : 'Bütün seviyeleri bitirdin!'}</p>
-      <div class="row-btns">${nextL ? `<button class="primary-btn go-next">Seviye ${nextL.id}${yonelme(nextL.id)} geç →</button>` : ''}<button class="ghost-btn keep">Burada devam et</button></div></div>`;
-    if (nextL) $('.go-next', b).addEventListener('click', () => location.hash = `seviye-${nextL.id}`);
-    $('.keep', b).addEventListener('click', () => { b.hidden = true; streak = 0; next(); });
+    b.innerHTML = `<div class="pb-card">
+      <div class="pb-emoji">${passed ? '🎉' : '💪'}</div>
+      <h3>${N} soruda ${correct} doğru — %${pct}</h3>
+      <p>${passed
+        ? (mode === 'oku' ? (nextL ? `Seviye ${L.id} tamam. <b>Seviye ${nextL.id}: ${nextL.title}</b> açıldı.` : 'Bütün seviyeleri bitirdin!') : 'Harika, notaların yerini iyi biliyorsun.')
+        : `Geçmek için en az %${PASS_PCT} gerekiyor. Biraz daha alıştırma yapıp tekrar dene.`}</p>
+      ${missList ? `<p class="muted">Karıştırdıkların: ${missList}</p>` : ''}
+      <div class="row-btns">
+        ${passed && mode === 'oku' && nextL ? `<button class="primary-btn go-next">Seviye ${nextL.id}${yonelme(nextL.id)} geç →</button>` : ''}
+        <button class="${passed ? 'ghost-btn' : 'primary-btn'} again">Sınavı tekrarla</button>
+        ${!passed ? '<button class="ghost-btn practice">Alıştırmaya dön</button>' : ''}
+      </div></div>`;
+    if ($('.go-next', b)) $('.go-next', b).addEventListener('click', () => location.hash = `seviye-${nextL.id}`);
+    $('.again', b).addEventListener('click', start);
+    if ($('.practice', b)) $('.practice', b).addEventListener('click', () => location.hash = `seviye-${L.id}-alistir`);
   };
-  bindPad(body, (letter, acc) => {
-    if (locked || type !== 'oku') return;
-    const good = letter === q.letter && acc === q.acc;
-    finish(good, LETTERS[letter] + ACCIDENTALS[acc].label);
-  });
-  voiceHandler = (letter, acc) => {
-    if (locked) { if (!$('.next', body).hidden) next(); return; }
-    if (type !== 'oku') return;
-    const a = accs.includes(acc) ? acc : '';
-    finish(letter === q.letter && a === q.acc, LETTERS[letter] + ACCIDENTALS[a].label);
-  };
-  onStaffTap(svg, (step) => {
-    if (locked || type !== 'koy') return;
-    if (step < 26 || step > 42) return;
-    const given = noteFromStep(step);
-    finish(given.letter === q.letter, `${noteName(given)} (${placeName(step)})`, given);
-  });
+
+  if (mode === 'oku') {
+    bindPad(body, (letter, acc) => {
+      if (locked) return;
+      finish(letter, acc);
+    });
+    const finish = (letter, acc) => judge(letter === q.letter && acc === q.acc, LETTERS[letter] + ACCIDENTALS[acc].label);
+    voiceHandler = (letter, acc) => {
+      if (locked) { if (!$('.next', body).hidden) next(); return; }
+      finish(letter, accs.includes(acc) ? acc : '');
+    };
+    $('.listen', body).addEventListener('click', () => q && playCents(q.cents));
+  } else {
+    onStaffTap(svg, (step) => {
+      if (locked || step < 26 || step > 42) return;
+      const given = noteFromStep(step);
+      judge(given.letter === q.letter, `${noteName(given)} (${placeName(step)})`, given);
+    });
+  }
   $('.next', body).addEventListener('click', next);
-  $('.listen', body).addEventListener('click', () => q && playCents(q.cents));
-  next();
+  start();
 }
 
 // ------------------------------------------------------------- yönlendirme
@@ -347,7 +382,7 @@ function route() {
     renderPractice(body, { pool, letters: [0, 1, 2, 3, 4, 5, 6], accs: ['b', 'b2', '', '#2', '#'], title: 'Porteye dokun ya da bir nota seç/söyle: yeri ve sesi gösterilir.' });
     return;
   }
-  const m = h.match(/^seviye-(\d+)(?:-(alistir|sinav))?$/);
+  const m = h.match(/^seviye-(\d+)(?:-(alistir|sinav|koy))?$/);
   if (!m) return renderHome();
   const id = +m[1], tab = m[2] || 'ogren';
   const L = LEVELS.find(x => x.id === id);
@@ -361,7 +396,8 @@ function route() {
     const names = [...new Set(pool.map(p => noteName(p)))].join(', ');
     return renderPractice(body, { pool, letters, accs, title: `Bu seviyenin notaları: <b>${names}</b>. Porteye dokun ya da bir notayı seç/söyle. Hazır olunca <b>Sınav</b>’a geç.` });
   }
-  return renderTest(L, body);
+  if (tab === 'koy' && !L.accidentals) return renderTest(L, body, 'koy');
+  return renderTest(L, body, 'oku');
 }
 window.addEventListener('hashchange', route);
 

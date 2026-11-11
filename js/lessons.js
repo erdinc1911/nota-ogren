@@ -32,12 +32,12 @@ export const LEVELS = [
         text: 'Porteye sığmayan notalar için notanın yanına <b>kısa ek çizgiler</b> çizilir. Örneğin alttaki <b>Do</b> kendi ek çizgisinin üzerindedir; üstteki <b>La</b> da öyle.',
         staff: { notes: [N(DO4), N(LA5)] } },
       { title: 'Nasıl çalışacağız?',
-        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: üst üste yeterince doğru yapınca sonraki seviye açılır.',
+        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: 20–40 soruluk sınavda <b>%90</b> ve üstü doğru yapınca sonraki seviye açılır. <b>Porteye koy</b> bölümünde de notaları porteye yerleştirerek çalışabilirsin.',
         staff: { notes: [N(SOL4), N(LA4)] } },
     ],
   },
   {
-    id: 1, title: 'Sol ve La', subtitle: 'İlk iki nota', newNotes: [SOL4, LA4], target: 6,
+    id: 1, title: 'Sol ve La', subtitle: 'İlk iki nota', newNotes: [SOL4, LA4], questions: 20,
     slides: [
       { title: 'Sol – 2. çizgi',
         text: 'Sol anahtarının sardığı <b>2. çizgi</b> Sol’dür. Bağlamada <b>orta tel boşta</b> Sol sesini verir.',
@@ -51,7 +51,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 2, title: 'Si', subtitle: 'Portenin ortası', newNotes: [SI4], target: 8,
+    id: 2, title: 'Si', subtitle: 'Portenin ortası', newNotes: [SI4], questions: 24,
     slides: [
       { title: 'Si – 3. çizgi',
         text: 'La’nın bir basamak üstü <b>3. çizgi</b>, yani portenin <b>tam ortasındaki çizgi</b> Si’dir.',
@@ -62,7 +62,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 3, title: 'Fa ve Mi', subtitle: 'Portenin altı', newNotes: [FA4, MI4], target: 10,
+    id: 3, title: 'Fa ve Mi', subtitle: 'Portenin altı', newNotes: [FA4, MI4], questions: 30,
     slides: [
       { title: 'Fa – 1. aralık',
         text: 'Sol’ün bir basamak altı, <b>1. ve 2. çizgi arasındaki aralık</b> Fa’dır.',
@@ -76,7 +76,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 4, title: 'Re ve Do', subtitle: 'Portenin altına iniyoruz', newNotes: [RE4, DO4], target: 10,
+    id: 4, title: 'Re ve Do', subtitle: 'Portenin altına iniyoruz', newNotes: [RE4, DO4], questions: 30,
     slides: [
       { title: 'Re – portenin hemen altı',
         text: 'Mi’nin bir basamak altı Re’dir: nota <b>1. çizginin altına asılır</b>. Bağlamada <b>alt tel boşta</b> Re sesini verir.',
@@ -90,7 +90,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 5, title: 'Üstteki Do ve Re', subtitle: 'İkinci oktava geçiş', newNotes: [DO5, RE5], target: 10,
+    id: 5, title: 'Üstteki Do ve Re', subtitle: 'İkinci oktava geçiş', newNotes: [DO5, RE5], questions: 30,
     slides: [
       { title: 'Do – 3. aralık',
         text: 'Si’nin bir basamak üstü yeniden <b>Do</b>’dur: <b>3. aralıkta</b> durur. Alttaki Do’dan 8 basamak yukarıdadır; buna <b>oktav</b> denir. Aynı isim, daha ince ses.',
@@ -101,7 +101,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 6, title: 'Üstteki Mi ve Fa', subtitle: 'Portenin tepesi', newNotes: [MI5, FA5], target: 10,
+    id: 6, title: 'Üstteki Mi ve Fa', subtitle: 'Portenin tepesi', newNotes: [MI5, FA5], questions: 30,
     slides: [
       { title: 'Mi – 4. aralık, Fa – 5. çizgi',
         text: 'Re’nin üstü <b>4. aralıkta Mi</b>, en üstteki <b>5. çizgide Fa</b>.',
@@ -115,7 +115,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 7, title: 'Üstteki Sol ve La', subtitle: 'Üst ek çizgi', newNotes: [SOL5, LA5], target: 10,
+    id: 7, title: 'Üstteki Sol ve La', subtitle: 'Üst ek çizgi', newNotes: [SOL5, LA5], questions: 30,
     slides: [
       { title: 'Sol – portenin hemen üstü',
         text: 'Fa’nın üstü Sol’dür: nota <b>5. çizginin üstüne oturur</b>.',
@@ -126,15 +126,15 @@ export const LEVELS = [
     ],
   },
   {
-    id: 8, title: 'Hepsi bir arada', subtitle: 'Tüm porte, karışık', newNotes: [], target: 15,
+    id: 8, title: 'Hepsi bir arada', subtitle: 'Tüm porte, karışık', newNotes: [], questions: 40,
     slides: [
       { title: 'Tekrar zamanı',
-        text: 'Alttaki Do’dan üstteki La’ya kadar bütün notalar karışık sorulacak. Geçmek için <b>15 doğru üst üste</b>.',
+        text: 'Alttaki Do’dan üstteki La’ya kadar bütün notalar karışık sorulacak. Sınav 40 soru; geçmek için <b>%90 doğru</b>.',
         staff: { notes: NATURALS.map(x => ({ note: x, label: false })) } },
     ],
   },
   {
-    id: 9, title: 'Diyez ve bemol', subtitle: '♯ inceltir, ♭ kalınlaştırır', newNotes: [n(3, 4, '#'), n(6, 4, 'b'), n(0, 5, '#'), n(2, 5, 'b')], target: 10, accidentals: true,
+    id: 9, title: 'Diyez ve bemol', subtitle: '♯ inceltir, ♭ kalınlaştırır', newNotes: [n(3, 4, '#'), n(6, 4, 'b'), n(0, 5, '#'), n(2, 5, 'b')], questions: 30, accidentals: true,
     slides: [
       { title: 'Değiştirici işaretler',
         text: '<b>♯ (diyez)</b> notanın sesini yarım ses <b>inceltir</b>. <b>♭ (bemol)</b> yarım ses <b>kalınlaştırır</b>. İşaret, notanın <b>soluna, aynı çizgi ya da aralığa</b> yazılır. Notanın adı değişmez: “Fa diyez”, “Si bemol”.',
@@ -145,7 +145,7 @@ export const LEVELS = [
     ],
   },
   {
-    id: 10, title: 'Koma sesleri', subtitle: 'Türk müziğinin ara sesleri', newNotes: [n(6, 4, 'b2'), n(2, 5, 'b2'), n(3, 4, '#2'), n(0, 5, '#2'), n(5, 4, 'b2')], target: 10, accidentals: true,
+    id: 10, title: 'Koma sesleri', subtitle: 'Türk müziğinin ara sesleri', newNotes: [n(6, 4, 'b2'), n(2, 5, 'b2'), n(3, 4, '#2'), n(0, 5, '#2'), n(5, 4, 'b2')], questions: 30, accidentals: true,
     slides: [
       { title: 'Yarım sesten küçük aralıklar',
         text: 'Türk müziğinde yarım sesten daha küçük aralıklar da kullanılır. Halk müziği notalarında işaretin yanındaki <b>sayı</b>, sesin yaklaşık <b>kaç koma</b> değiştiğini gösterir. <b>Si♭2</b> (“si bemol iki”), Si’den biraz kalın ama Si♭’den incedir.',
