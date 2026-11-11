@@ -17,7 +17,7 @@ const PHRASES = [
 // Yüksek: [unk] yok; konuşma en yakın notaya eşlenir (kısık/kısa söyleyişi daha kolay yakalar).
 const grammarFor = (sens) => JSON.stringify(sens === 'normal' ? [...PHRASES, '[unk]'] : PHRASES);
 
-const STABLE_MS = 320;
+const STABLE_MS = 300;
 const MODS = ['bemol', 'koma', 'diyet', 'iki'];
 /** "sol la si bemol iki" -> ["sol", "la", "si bemol iki"] */
 function noteGroups(text) {
@@ -71,43 +71,54 @@ export function createSpeech() {
   }
   async function voskStart() {
     try {
-      // mikrofonu hemen iste (tıklamanın hemen ardından)
-      // Gürültü bastırma kısa heceleri de yutabiliyor: kapalı; otomatik kazanç açık
       const streamP = navigator.mediaDevices.getUserMedia({
-        video: false, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 },
+        video: false, audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
       });
       const [model, stream] = await Promise.all([loadVosk(), streamP]);
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Model 16 kHz ile eğitildi: mümkünse ses de 16 kHz işlensin
+      let ctx, src;
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        src = ctx.createMediaStreamSource(stream);
+      } catch {
+        try { ctx && ctx.close(); } catch {}
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        src = ctx.createMediaStreamSource(stream);
+      }
       if (ctx.state === 'suspended') await ctx.resume();
-      rec = new model.KaldiRecognizer(ctx.sampleRate, grammarFor(api.sensitivity));
-      // Vosk "result"u ancak uzun bir sessizlikten sonra verir; art arda söylenen notalar
-      // tek sonuçta birikir. Bu yüzden ara sonuçları (partial) izleyip her notayı,
-      // söyledikten kısa bir duraklama sonra ayrı ayrı bildiriyoruz.
-      let consumed = 0, partial = '', timer = null;
-      const flush = (text, final) => {
-        const gs = noteGroups(text);
-        for (let i = consumed; i < gs.length; i++) emitText(gs[i]);
-        consumed = final ? 0 : gs.length;
+
+      // Her nota ayrı bir "konuşma": bir nota yakalanınca tanıyıcı sıfırlanır.
+      // Böylece motorun eski sözcükleri yeniden düzeltmesi yeni notayı yutmaz.
+      let partial = '', timer = null;
+      const makeRec = () => {
+        const r = new model.KaldiRecognizer(ctx.sampleRate, grammarFor(api.sensitivity));
+        r.on('partialresult', (m) => {
+          if (r !== rec) return;
+          const p = (m && m.result && m.result.partial || '').trim();
+          if (p === partial) return;
+          partial = p;
+          clearTimeout(timer);
+          if (noteGroups(p).length) timer = setTimeout(() => take(p), STABLE_MS);
+        });
+        r.on('result', (m) => {
+          if (r !== rec) return;
+          clearTimeout(timer);
+          const t = (m && m.result && m.result.text) || '';
+          partial = '';
+          if (noteGroups(t).length) noteGroups(t).forEach(emitText);
+          else if (t.trim()) setState(true, 'Ses duyuldu ama anlaşılamadı — nota adını net söyle.');
+        });
+        return r;
       };
-      rec.on('partialresult', (m) => {
-        const p = (m && m.result && m.result.partial || '').trim();
-        if (p === partial) return;
-        partial = p;
-        clearTimeout(timer);
-        timer = setTimeout(() => flush(partial, false), STABLE_MS);
-      });
-      rec.on('result', (m) => {
-        clearTimeout(timer);
-        const t = (m && m.result && m.result.text) || '';
-        if (t.trim() === '[unk]' || (!noteGroups(t).length && t.trim())) setState(true, 'Ses duyuldu ama anlaşılamadı — nota adını net söyle.');
-        flush(t, true);
+      const take = (text) => {
+        noteGroups(text).forEach(emitText);
         partial = '';
-      });
-      const src = ctx.createMediaStreamSource(stream);
-      // kısık sesi yükselt, ani bağırmaları sınırla
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -40; comp.knee.value = 20; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
-      const gain = ctx.createGain(); gain.gain.value = 2.2;
+        const old = rec;
+        rec = makeRec();
+        try { old && old.remove(); } catch {}
+      };
+      rec = makeRec();
+
       const node = ctx.createScriptProcessor(4096, 1, 1);
       let lastLevelAt = 0;
       node.onaudioprocess = (e) => {
@@ -117,13 +128,12 @@ export function createSpeech() {
           lastLevelAt = now;
           const d = e.inputBuffer.getChannelData(0);
           let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * d[i];
-          const rms = Math.sqrt(sum / (d.length / 4));
-          levelCbs.forEach(cb => cb(Math.min(1, rms * 4)));
+          levelCbs.forEach(cb => cb(Math.min(1, Math.sqrt(sum / (d.length / 4)) * 5)));
         }
       };
-      src.connect(comp).connect(gain).connect(node);
+      src.connect(node);
       node.connect(ctx.destination); // bazı tarayıcılar bağlı olmayan işlemciyi çalıştırmaz (çıkış sessiz)
-      audio = { ctx, stream, src, node, comp, gain };
+      audio = { ctx, stream, src, node };
       setState(true, 'Dinliyorum. Notayı söyle: “sol”, “la”…');
     } catch (e) {
       voskStop(true);
@@ -136,7 +146,7 @@ export function createSpeech() {
   }
   function voskStop(silent = false) {
     if (audio) {
-      try { audio.node.disconnect(); audio.src.disconnect(); audio.comp.disconnect(); audio.gain.disconnect(); } catch {}
+      try { audio.node.disconnect(); audio.src.disconnect(); } catch {}
       levelCbs.forEach(cb => cb(0));
       audio.stream.getTracks().forEach(t => t.stop());
       audio.ctx.close().catch(() => {});
