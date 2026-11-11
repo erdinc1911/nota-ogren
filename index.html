@@ -24,6 +24,12 @@
 <aside id="settings" class="drawer" aria-label="Ayarlar">
   <div class="drawer-head"><h2>Ayarlar</h2><button id="settings-close" class="icon-btn" aria-label="Kapat">✕</button></div>
   <label class="check"><input type="checkbox" id="set-sound"> Ses açık</label>
+  <label class="field-s">Ses algılama hassasiyeti
+    <select id="set-sens">
+      <option value="yuksek">Yüksek – kısık sesi de yakalar</option>
+      <option value="normal">Normal – gürültülü ortam için</option>
+    </select>
+  </label>
   <button id="unlock-all" class="ghost-btn">Bütün seviyeleri aç</button>
   <button id="reset-all" class="ghost-btn">İlerlemeyi sıfırla</button>
   <p class="note">İlerlemen yalnızca bu cihazdaki tarayıcıda saklanır. Sesle cevap için 🎤 düğmesine bas; ilk seferde mikrofon izni sorulur.</p>

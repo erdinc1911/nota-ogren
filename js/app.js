@@ -34,6 +34,7 @@ function padHTML({ letters, accs }) {
         `<button class="letter-btn" data-letter="${l}">${LETTERS[l]}</button>`).join('')}</div>
       <div class="mic-row">
         <button class="mic-btn" ${speech.available ? '' : 'hidden'}>🎤 <span>Söyleyerek cevapla</span></button>
+        <span class="level" aria-hidden="true"><i></i></span>
         <span class="heard">${speech.available ? '' : speech.reason}</span>
       </div>
     </div>`;
@@ -70,6 +71,8 @@ function updateMic(state = {}) {
   else if (!speech.available && speech.reason) setHeard(speech.reason);
 }
 speech.onState(updateMic);
+speech.setSensitivity(store.getSettings().sens || 'yuksek');
+speech.onLevel((v) => { const i = document.querySelector('.level i'); if (i) i.style.width = Math.round(v * 100) + '%'; });
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat || e.target.closest('input,select,textarea')) return;
   const mic = document.querySelector('.mic-btn');
@@ -367,6 +370,8 @@ const drawer = $('#settings');
 $('#settings-btn').addEventListener('click', () => drawer.classList.toggle('open'));
 $('#settings-close').addEventListener('click', () => drawer.classList.remove('open'));
 $('#set-sound').checked = store.getSettings().sound;
+$('#set-sens').value = store.getSettings().sens || 'yuksek';
+$('#set-sens').addEventListener('change', (e) => { store.setSetting('sens', e.target.value); speech.setSensitivity(e.target.value); });
 $('#set-sound').addEventListener('change', (e) => { store.setSetting('sound', e.target.checked); setSoundEnabled(e.target.checked); });
 $('#unlock-all').addEventListener('click', () => { store.unlockAll(LEVELS.length - 1); drawer.classList.remove('open'); route(); });
 let resetArmed = false;

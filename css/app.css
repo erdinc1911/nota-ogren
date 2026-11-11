@@ -145,3 +145,9 @@ button:disabled { opacity: .4; cursor: default; }
   .big { font-size: 1.3rem; }
   .brand small { display: none; }
 }
+
+.level { width: 70px; height: 8px; border-radius: 4px; background: #eadfcc; overflow: hidden; display: inline-block; }
+.level i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--ok), var(--gold), var(--accent)); transition: width .06s linear; }
+.field-s { display: grid; gap: 6px; font-weight: 600; }
+.field-s select { font: inherit; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+.mic-btn[hidden] + .level { display: none; }

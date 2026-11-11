@@ -9,11 +9,13 @@ const VOSK_JS = 'https://cdn.jsdelivr.net/npm/vosk-browser@0.0.8/dist/vosk.js';
 const VOSK_MODEL = 'model/vosk-tr.tar.gz';
 const NOTES = ['do', 're', 'mi', 'fa', 'sol', 'la', 'si'];
 // Modelin sözlüğünde "diyez" yok; en yakın sözcük "diyet" (theory.js bunu diyez sayar)
-const GRAMMAR = JSON.stringify([
+const PHRASES = [
   ...NOTES,
   ...NOTES.flatMap(n => [`${n} bemol`, `${n} bemol iki`, `${n} koma bemol`, `${n} diyet`, `${n} diyet iki`]),
-  '[unk]',
-]);
+];
+// Normal: anlaşılmayan sesler [unk] olur (gürültüye dayanıklı).
+// Yüksek: [unk] yok; konuşma en yakın notaya eşlenir (kısık/kısa söyleyişi daha kolay yakalar).
+const grammarFor = (sens) => JSON.stringify(sens === 'normal' ? [...PHRASES, '[unk]'] : PHRASES);
 
 const STABLE_MS = 320;
 const MODS = ['bemol', 'koma', 'diyet', 'iki'];
@@ -28,9 +30,12 @@ function noteGroups(text) {
 }
 
 export function createSpeech() {
-  const textCbs = [], stateCbs = [];
+  const textCbs = [], stateCbs = [], levelCbs = [];
   const api = {
     available: false, kind: null, listening: false, reason: '', pushToTalk: false,
+    sensitivity: 'yuksek',
+    setSensitivity(v) { api.sensitivity = v; if (api.listening && api.kind === 'vosk') { voskStop(true); voskStart(); } },
+    onLevel(cb) { levelCbs.push(cb); },
     onText(cb) { textCbs.push(cb); },
     onState(cb) { stateCbs.push(cb); },
     start() {}, stop() {},
@@ -67,13 +72,14 @@ export function createSpeech() {
   async function voskStart() {
     try {
       // mikrofonu hemen iste (tıklamanın hemen ardından)
+      // Gürültü bastırma kısa heceleri de yutabiliyor: kapalı; otomatik kazanç açık
       const streamP = navigator.mediaDevices.getUserMedia({
-        video: false, audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+        video: false, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 },
       });
       const [model, stream] = await Promise.all([loadVosk(), streamP]);
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
-      rec = new model.KaldiRecognizer(ctx.sampleRate, GRAMMAR);
+      rec = new model.KaldiRecognizer(ctx.sampleRate, grammarFor(api.sensitivity));
       // Vosk "result"u ancak uzun bir sessizlikten sonra verir; art arda söylenen notalar
       // tek sonuçta birikir. Bu yüzden ara sonuçları (partial) izleyip her notayı,
       // söyledikten kısa bir duraklama sonra ayrı ayrı bildiriyoruz.
@@ -92,15 +98,32 @@ export function createSpeech() {
       });
       rec.on('result', (m) => {
         clearTimeout(timer);
-        flush((m && m.result && m.result.text) || '', true);
+        const t = (m && m.result && m.result.text) || '';
+        if (t.trim() === '[unk]' || (!noteGroups(t).length && t.trim())) setState(true, 'Ses duyuldu ama anlaşılamadı — nota adını net söyle.');
+        flush(t, true);
         partial = '';
       });
       const src = ctx.createMediaStreamSource(stream);
+      // kısık sesi yükselt, ani bağırmaları sınırla
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -40; comp.knee.value = 20; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.15;
+      const gain = ctx.createGain(); gain.gain.value = 2.2;
       const node = ctx.createScriptProcessor(4096, 1, 1);
-      node.onaudioprocess = (e) => { try { rec && rec.acceptWaveform(e.inputBuffer); } catch {} };
-      src.connect(node);
-      node.connect(ctx.destination); // bazı tarayıcılar bağlı olmayan işlemciyi çalıştırmaz
-      audio = { ctx, stream, src, node };
+      let lastLevelAt = 0;
+      node.onaudioprocess = (e) => {
+        try { rec && rec.acceptWaveform(e.inputBuffer); } catch {}
+        const now = performance.now();
+        if (levelCbs.length && now - lastLevelAt > 60) {
+          lastLevelAt = now;
+          const d = e.inputBuffer.getChannelData(0);
+          let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * d[i];
+          const rms = Math.sqrt(sum / (d.length / 4));
+          levelCbs.forEach(cb => cb(Math.min(1, rms * 4)));
+        }
+      };
+      src.connect(comp).connect(gain).connect(node);
+      node.connect(ctx.destination); // bazı tarayıcılar bağlı olmayan işlemciyi çalıştırmaz (çıkış sessiz)
+      audio = { ctx, stream, src, node, comp, gain };
       setState(true, 'Dinliyorum. Notayı söyle: “sol”, “la”…');
     } catch (e) {
       voskStop(true);
@@ -113,7 +136,8 @@ export function createSpeech() {
   }
   function voskStop(silent = false) {
     if (audio) {
-      try { audio.node.disconnect(); audio.src.disconnect(); } catch {}
+      try { audio.node.disconnect(); audio.src.disconnect(); audio.comp.disconnect(); audio.gain.disconnect(); } catch {}
+      levelCbs.forEach(cb => cb(0));
       audio.stream.getTracks().forEach(t => t.stop());
       audio.ctx.close().catch(() => {});
       audio = null;
