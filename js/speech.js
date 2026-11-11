@@ -91,7 +91,9 @@ export function createSpeech() {
       // diğerlerine örnekleme hızı olduğundan yüksek bildirilir, böylece ses (perde ve
       // formantlar) kalınlaşmış gibi algılanır. İnce/yüksek sesle söylenen notalar da
       // modelin eğitildiği konuşma aralığına düşer. Hangisi önce yakalarsa o kabul edilir.
-      const FACTORS = (navigator.hardwareConcurrency || 2) >= 4 ? [1, 1.25, 1.55] : [1, 1.35];
+      // Kalınlaştırılmış ek kopyalar (ör. [1, 1.25, 1.55]) ince sesi yakalıyordu ama bazen
+      // 'do'yu 'la' sanıyordu; kullanıcı isteğiyle kapalı: yalnızca sesin olduğu gibi dinlenir.
+      const FACTORS = [1];
       let recs = [], timer = null, timerText = '';
       const makeRec = (f) => {
         const r = new model.KaldiRecognizer(Math.round(ctx.sampleRate * f), grammarFor(api.sensitivity));
