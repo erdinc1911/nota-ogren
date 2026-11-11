@@ -180,3 +180,48 @@ export function parseSpokenNote(text) {
   }
   return { letter, acc };
 }
+
+// ---------- Birden çok nota: "si do do sol", "sidodosol", "si bemol iki la" ----------
+const SYL = [['sol', 4], ['do', 0], ['re', 1], ['mi', 2], ['fa', 3], ['la', 5], ['si', 6]];
+/** Bitişik yazılmış nota hecelerini ayır: "sidodosol" -> ["si","do","do","sol"]; ayrılamazsa null */
+function splitSyllables(w) {
+  w = w.replace(/ı/g, 'i');
+  const memo = {};
+  const go = (i) => {
+    if (i === w.length) return [];
+    if (i in memo) return memo[i];
+    for (const [syl] of SYL) {
+      if (w.startsWith(syl, i)) { const rest = go(i + syl.length); if (rest) return (memo[i] = [syl, ...rest]); }
+    }
+    return (memo[i] = null);
+  };
+  return w.length >= 4 ? go(0) : null;
+}
+/** Konuşma metnindeki bütün notaları sırayla döndür: [{letter, acc}, ...] */
+export function parseSpokenNotes(text) {
+  if (!text) return [];
+  const raw = text.toLocaleLowerCase('tr-TR')
+    .replace(/♭/g, ' bemol ').replace(/[♯#]/g, ' diyez ')
+    .replace(/[.,!?;:"()’'`]/g, ' ').split(/\s+/).filter(Boolean);
+  // bitişik heceleri aç
+  const tokens = [];
+  for (const t of raw) {
+    const isWord = NOTE_WORDS.some(([, ws]) => ws.includes(t)) || FLAT_WORDS.some(w => t.startsWith(w)) || SHARP_WORDS.some(w => t.startsWith(w));
+    const parts = isWord ? null : splitSyllables(t);
+    if (parts) tokens.push(...parts); else tokens.push(t);
+  }
+  const out = [];
+  let i = 0;
+  while (i < tokens.length) {
+    // bu noktadan başlayan tek notalık parçayı bul (nota + işaret sözcükleri)
+    let j = i + 1;
+    while (j < tokens.length && !isNoteToken(tokens[j])) j++;
+    const one = parseSpokenNote(tokens.slice(i, j).join(' '));
+    if (one && isNoteToken(tokens[i])) out.push(one);
+    i = j;
+  }
+  return out;
+}
+function isNoteToken(t) {
+  return NOTE_WORDS.some(([, ws]) => ws.includes(t)) || fuzzyNote(t) !== null;
+}

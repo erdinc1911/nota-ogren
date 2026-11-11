@@ -124,7 +124,8 @@ export function createSpeech() {
         old.forEach(r => { try { r.remove(); } catch {} });
       };
       // Her nota ayrı bir "konuşma": bir nota yakalanınca tüm tanıyıcılar sıfırlanır.
-      const take = (text) => { clearTimeout(timer); noteGroups(text).forEach(emitText); resetAll(); };
+      // birlikte söylenen notalar tek seferde gönderilir ("si do do sol"); uygulama sırayla işler
+      const take = (text) => { clearTimeout(timer); const gs = noteGroups(text); if (gs.length) emitText(gs.join(' ')); resetAll(); };
       resetAll();
       api._recs = () => recs;
 

@@ -1,4 +1,4 @@
-import { LETTERS, ACCIDENTALS, makeNote, noteName, noteLongName, parseSpokenNote, spell, A4_CENTS } from './theory.js';
+import { LETTERS, ACCIDENTALS, makeNote, noteName, noteLongName, parseSpokenNotes, spell, A4_CENTS } from './theory.js';
 import { createPitchListener } from './pitch.js';
 import { LEVELS, levelPool, ALL_NATURALS } from './lessons.js';
 import { renderStaff, onStaffTap, placeName } from './staff.js';
@@ -85,13 +85,18 @@ document.addEventListener('keydown', (e) => {
 let lastVoice = 0;
 speech.onText((text) => {
   const alts = text.split(' | ');
-  let parsed = null;
-  for (const a of alts) { parsed = parseSpokenNote(a); if (parsed) break; }
-  setHeard(`Duyulan: “${alts[0].trim()}”` + (parsed ? ` → ${LETTERS[parsed.letter]}${ACCIDENTALS[parsed.acc].label}` : ' (anlaşılamadı)'));
+  let notes = [];
+  for (const a of alts) { notes = parseSpokenNotes(a); if (notes.length) break; }
+  const names = notes.map(n => LETTERS[n.letter] + ACCIDENTALS[n.acc].label).join(' ');
+  setHeard(`Duyulan: “${alts[0].trim()}”` + (notes.length ? ` → ${names}` : ' (anlaşılamadı)'));
   const now = Date.now();
-  if (!parsed || now - lastVoice < 150) return;
+  if (!notes.length || now - lastVoice < 150) return;
   lastVoice = now;
-  voiceHandler && voiceHandler(parsed.letter, parsed.acc);
+  // sırayla işle; işleyici false dönerse (yanlış cevap) geri kalanını bırak
+  for (const nt of notes) {
+    if (!voiceHandler) break;
+    if (voiceHandler(nt.letter, nt.acc) === false) break;
+  }
 });
 
 // ------------------------------------------------------------- ana sayfa
@@ -390,14 +395,16 @@ function renderTest(L, body, mode = 'oku') {
 
   if (mode === 'oku') {
     const answer = (letter, acc) => {
-      if (locked || !cur()) return;
+      if (locked || !cur()) return false;
       const q = cur().note;
-      judge(letter === q.letter && acc === q.acc, LETTERS[letter] + ACCIDENTALS[acc].label);
+      const good = letter === q.letter && acc === q.acc;
+      judge(good, LETTERS[letter] + ACCIDENTALS[acc].label);
+      return good;
     };
     bindPad(body, answer);
     voiceHandler = (letter, acc) => {
-      if (locked) return;
-      answer(letter, accs.includes(acc) ? acc : '');
+      if (locked) return false;
+      return answer(letter, accs.includes(acc) ? acc : '');
     };
     $('.listen', body).addEventListener('click', () => cur() && playCents(cur().note.cents));
   } else {
