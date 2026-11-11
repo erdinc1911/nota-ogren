@@ -84,7 +84,7 @@ speech.onText((text) => {
   for (const a of alts) { parsed = parseSpokenNote(a); if (parsed) break; }
   setHeard(`Duyulan: “${alts[0].trim()}”` + (parsed ? ` → ${LETTERS[parsed.letter]}${ACCIDENTALS[parsed.acc].label}` : ' (anlaşılamadı)'));
   const now = Date.now();
-  if (!parsed || now - lastVoice < 500) return;
+  if (!parsed || now - lastVoice < 150) return;
   lastVoice = now;
   voiceHandler && voiceHandler(parsed.letter, parsed.acc);
 });

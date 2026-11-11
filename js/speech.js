@@ -15,6 +15,18 @@ const GRAMMAR = JSON.stringify([
   '[unk]',
 ]);
 
+const STABLE_MS = 320;
+const MODS = ['bemol', 'koma', 'diyet', 'iki'];
+/** "sol la si bemol iki" -> ["sol", "la", "si bemol iki"] */
+function noteGroups(text) {
+  const out = [];
+  for (const tok of text.replace(/\[unk\]/g, ' ').split(/\s+/).filter(Boolean)) {
+    if (NOTES.includes(tok)) out.push(tok);
+    else if (MODS.includes(tok) && out.length) out[out.length - 1] += ' ' + tok;
+  }
+  return out;
+}
+
 export function createSpeech() {
   const textCbs = [], stateCbs = [];
   const api = {
@@ -62,9 +74,26 @@ export function createSpeech() {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       rec = new model.KaldiRecognizer(ctx.sampleRate, GRAMMAR);
+      // Vosk "result"u ancak uzun bir sessizlikten sonra verir; art arda söylenen notalar
+      // tek sonuçta birikir. Bu yüzden ara sonuçları (partial) izleyip her notayı,
+      // söyledikten kısa bir duraklama sonra ayrı ayrı bildiriyoruz.
+      let consumed = 0, partial = '', timer = null;
+      const flush = (text, final) => {
+        const gs = noteGroups(text);
+        for (let i = consumed; i < gs.length; i++) emitText(gs[i]);
+        consumed = final ? 0 : gs.length;
+      };
+      rec.on('partialresult', (m) => {
+        const p = (m && m.result && m.result.partial || '').trim();
+        if (p === partial) return;
+        partial = p;
+        clearTimeout(timer);
+        timer = setTimeout(() => flush(partial, false), STABLE_MS);
+      });
       rec.on('result', (m) => {
-        const t = (m && m.result && m.result.text || '').replace(/\[unk\]/g, '').trim();
-        if (t) emitText(t);
+        clearTimeout(timer);
+        flush((m && m.result && m.result.text) || '', true);
+        partial = '';
       });
       const src = ctx.createMediaStreamSource(stream);
       const node = ctx.createScriptProcessor(4096, 1, 1);
