@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nota Öğren</title>
+<meta name="theme-color" content="#2b1d14">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <button class="brand" aria-label="Seviyelere dön">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="15" cy="29" rx="8" ry="6" transform="rotate(-22 15 29)" fill="#c8893f"/><path d="M22 27V5c4 2 8 4 9 9" fill="none" stroke="#e9d9bd" stroke-width="3" stroke-linecap="round"/></svg>
+    <span><h1>Nota Öğren</h1><small>Sol anahtarı · adım adım</small></span>
+  </button>
+  <button id="settings-btn" class="icon-btn" aria-controls="settings">⚙ Ayarlar</button>
+</header>
+
+<main id="view" class="wrap"></main>
+
+<aside id="settings" class="drawer" aria-label="Ayarlar">
+  <div class="drawer-head"><h2>Ayarlar</h2><button id="settings-close" class="icon-btn" aria-label="Kapat">✕</button></div>
+  <label class="check"><input type="checkbox" id="set-sound"> Ses açık</label>
+  <button id="unlock-all" class="ghost-btn">Bütün seviyeleri aç</button>
+  <button id="reset-all" class="ghost-btn">İlerlemeyi sıfırla</button>
+  <p class="note">İlerlemen yalnızca bu cihazdaki tarayıcıda saklanır. Sesle cevap için 🎤 düğmesine bas; ilk seferde mikrofon izni sorulur.</p>
+</aside>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
