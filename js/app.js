@@ -1,4 +1,5 @@
-import { LETTERS, ACCIDENTALS, makeNote, noteName, noteLongName, parseSpokenNote } from './theory.js';
+import { LETTERS, ACCIDENTALS, makeNote, noteName, noteLongName, parseSpokenNote, spell, A4_CENTS } from './theory.js';
+import { createPitchListener } from './pitch.js';
 import { LEVELS, levelPool, ALL_NATURALS } from './lessons.js';
 import { renderStaff, onStaffTap, placeName } from './staff.js';
 import { playCents, blip, setSoundEnabled } from './audio.js';
@@ -125,7 +126,7 @@ function renderHome() {
 
 // ------------------------------------------------------------- ders ekranı
 function lessonShell(L, tab) {
-  const tabs = L.intro ? [] : [['ogren', 'Öğren'], ['alistir', 'Alıştır'], ['sinav', 'Sınav'], ...(L.accidentals ? [] : [['koy', 'Porteye koy']])];
+  const tabs = L.intro ? [] : [['ogren', 'Öğren'], ['alistir', 'Alıştır'], ['sinav', 'Sınav'], ...(L.accidentals ? [] : [['koy', 'Yerleştir']]), ['solfej', 'Solfej']];
   view.innerHTML = `
     <section class="lesson">
       <div class="lesson-head">
@@ -367,6 +368,115 @@ function renderTest(L, body, mode = 'oku') {
   start();
 }
 
+// ---- Solfej: notayı söyle (ya da sazla çal), perdesi ölçülür
+function renderSolfej(L, body) {
+  const pool = levelPool(L.id);
+  const N = 10;
+  const set = store.getSettings();
+  const tol = +(set.solfTol || 25);
+  const octaveFree = set.solfOct !== false;
+  const allowKoma = pool.some(p => ACCIDENTALS[p.note.acc].level === 2);
+  let deck, pos, q, ok, skipped, hold, muteUntil = 0, locked = false, hist = [], devs = [];
+
+  body.innerHTML = `
+    <div class="solfej">
+      <p class="lead">Portedeki notayı adıyla <b>söyle</b> (ya da sazla çal) ve sesi tut. ${octaveFree ? 'Kendi rahat ses aralığında söyleyebilirsin; oktav fark etmez.' : ''} Hedef: ±${tol} sent.</p>
+      <div class="progress"><div class="bar"><i></i></div><span class="ptext"></span></div>
+      <div class="staff-box"><svg class="staff"></svg></div>
+      <div class="meter" aria-hidden="true">
+        <div class="zone" style="left:${50 - tol}%;width:${2 * tol}%"></div>
+        <div class="tick first" style="left:0%">−50</div><div class="tick" style="left:25%">−25</div><div class="tick mid" style="left:50%">0</div><div class="tick" style="left:75%">+25</div><div class="tick last" style="left:100%">+50</div>
+        <div class="needle" hidden></div>
+        <span class="lbl l">pes</span><span class="lbl r">tiz</span>
+      </div>
+      <div class="hold"><i></i></div>
+      <div class="pinfo heardp">&nbsp;</div>
+      <div class="row-btns">
+        <button class="ghost-btn listen">🔊 Dinle</button>
+        <button class="primary-btn micp">🎤 Başla</button>
+        <button class="ghost-btn skip">Geç →</button>
+      </div>
+      <div class="passed-banner" hidden></div>
+    </div>`;
+  const svg = $('.staff', body), needle = $('.needle', body), info = $('.heardp', body);
+  const listener = createPitchListener(onPitch);
+  cleanup.push(() => listener.stop());
+
+  const progress = () => {
+    $('.bar i', body).style.width = Math.round(100 * (pos - 1) / N) + '%';
+    $('.ptext', body).textContent = `Nota ${Math.min(pos, N)} / ${N} · başarılı ${ok}`;
+  };
+  const start = () => { deck = buildDeck(pool, N); pos = 0; ok = 0; skipped = 0; devs = []; $('.passed-banner', body).hidden = true; next(); };
+  const next = () => {
+    if (pos >= deck.length) return finish();
+    q = deck[pos++].note; hold = 0; hist = []; locked = false;
+    renderStaff(svg, [q], { width: staffWidth() });
+    $('.hold i', body).style.width = '0%';
+    info.innerHTML = listener.running ? 'Söyle…' : '🎤 Başla’ya bas, sonra notayı söyle.';
+    progress();
+  };
+  const succeed = (dev) => {
+    locked = true; ok++; devs.push(Math.abs(dev));
+    store.recordAnswer(keyOf(q), true);
+    muteUntil = performance.now() + 400;
+    blip(true);
+    renderStaff(svg, [{ ...q, label: noteName(q), cls: 'ok' }], { width: staffWidth() });
+    info.innerHTML = `✓ <b class="big">${noteName(q)}</b> <span class="muted">${dev > 0 ? '+' : ''}${Math.round(dev)} sent</span>`;
+    later(next, 1100);
+  };
+  const finish = () => {
+    listener.stop(); updateMicBtn();
+    const avg = devs.length ? Math.round(devs.reduce((a, b) => a + b, 0) / devs.length) : 0;
+    const pct = Math.round(100 * ok / N);
+    store.setBest(`solfej-${L.id}`, pct);
+    const b = $('.passed-banner', body);
+    b.hidden = false;
+    b.innerHTML = `<div class="pb-card"><div class="pb-emoji">${pct >= 80 ? '🎶' : '💪'}</div>
+      <h3>${N} notada ${ok} başarılı</h3>
+      <p>${ok ? `Ortalama sapman: <b>${avg} sent</b>. ` : ''}${pct >= 80 ? 'Kulağın ve sesin uyumlu, harika!' : 'Önce 🔊 Dinle ile notayı duyup sonra söylemeyi dene.'}</p>
+      <div class="row-btns"><button class="primary-btn again">Tekrar</button></div></div>`;
+    $('.again', b).addEventListener('click', start);
+  };
+
+  function onPitch({ freq, clarity }) {
+    if (locked || !q || performance.now() < muteUntil) return;
+    if (!freq || clarity < 0.8) {
+      hist = []; hold = Math.max(0, hold - 25);
+      needle.hidden = true;
+      $('.hold i', body).style.width = Math.round(100 * hold / 700) + '%';
+      return;
+    }
+    const c = 1200 * Math.log2(freq / 440) + A4_CENTS;
+    hist.push(c); if (hist.length > 5) hist.shift();
+    const med = [...hist].sort((a, b) => a - b)[Math.floor(hist.length / 2)];
+    let dev = med - q.cents;
+    if (octaveFree) dev = ((((dev + 600) % 1200) + 1200) % 1200) - 600;
+    needle.hidden = false;
+    const shown = Math.max(-48, Math.min(48, dev));
+    needle.style.left = (50 + shown) + '%';
+    const inTol = Math.abs(dev) <= tol;
+    needle.classList.toggle('good', inTol);
+    const near = allowKoma ? spell(med) : spell(Math.round(med / 100) * 100);
+    const nearDev = med - (allowKoma ? near.cents : Math.round(med / 100) * 100);
+    info.innerHTML = `Duyulan: <b>${noteName(near)}</b> <span class="muted">${Math.round(freq)} Hz</span> · ` +
+      (Math.abs(dev) > 50 ? `<span class="muted">hedeften uzak</span>` : `<span class="${inTol ? 'okc' : 'muted'}">${dev > 0 ? '+' : ''}${Math.round(dev)} sent ${inTol ? '✓' : dev > 0 ? '(biraz tiz)' : '(biraz pes)'}</span>`);
+    void nearDev;
+    hold = inTol ? hold + 50 : Math.max(0, hold - 25);
+    $('.hold i', body).style.width = Math.min(100, Math.round(100 * hold / 700)) + '%';
+    if (hold >= 700) succeed(dev);
+  }
+
+  const updateMicBtn = () => { $('.micp', body).textContent = listener.running ? '⏹ Durdur' : '🎤 Başla'; };
+  $('.micp', body).addEventListener('click', async () => {
+    if (listener.running) { listener.stop(); needle.hidden = true; updateMicBtn(); info.innerHTML = 'Durduruldu.'; return; }
+    try { await listener.start(); updateMicBtn(); info.innerHTML = 'Söyle…'; }
+    catch (e) { info.innerHTML = (e && e.name === 'NotAllowedError') ? 'Mikrofon izni verilmedi.' : 'Mikrofon açılamadı.'; }
+  });
+  $('.listen', body).addEventListener('click', () => { if (!q) return; muteUntil = performance.now() + 2000; hist = []; playCents(q.cents); });
+  $('.skip', body).addEventListener('click', () => { if (locked) return; store.recordAnswer(keyOf(q), false); skipped++; next(); });
+  start();
+}
+
 // ------------------------------------------------------------- yönlendirme
 function route() {
   cleanup.forEach(f => f()); cleanup = [];
@@ -382,7 +492,7 @@ function route() {
     renderPractice(body, { pool, letters: [0, 1, 2, 3, 4, 5, 6], accs: ['b', 'b2', '', '#2', '#'], title: 'Porteye dokun ya da bir nota seç/söyle: yeri ve sesi gösterilir.' });
     return;
   }
-  const m = h.match(/^seviye-(\d+)(?:-(alistir|sinav|koy))?$/);
+  const m = h.match(/^seviye-(\d+)(?:-(alistir|sinav|koy|solfej))?$/);
   if (!m) return renderHome();
   const id = +m[1], tab = m[2] || 'ogren';
   const L = LEVELS.find(x => x.id === id);
@@ -396,6 +506,7 @@ function route() {
     const names = [...new Set(pool.map(p => noteName(p)))].join(', ');
     return renderPractice(body, { pool, letters, accs, title: `Bu seviyenin notaları: <b>${names}</b>. Porteye dokun ya da bir notayı seç/söyle. Hazır olunca <b>Sınav</b>’a geç.` });
   }
+  if (tab === 'solfej') return renderSolfej(L, body);
   if (tab === 'koy' && !L.accidentals) return renderTest(L, body, 'koy');
   return renderTest(L, body, 'oku');
 }
@@ -406,6 +517,10 @@ const drawer = $('#settings');
 $('#settings-btn').addEventListener('click', () => drawer.classList.toggle('open'));
 $('#settings-close').addEventListener('click', () => drawer.classList.remove('open'));
 $('#set-sound').checked = store.getSettings().sound;
+$('#set-tol').value = String(store.getSettings().solfTol || 25);
+$('#set-tol').addEventListener('change', (e) => { store.setSetting('solfTol', +e.target.value); });
+$('#set-oct').checked = store.getSettings().solfOct !== false;
+$('#set-oct').addEventListener('change', (e) => { store.setSetting('solfOct', e.target.checked); });
 $('#set-sens').value = store.getSettings().sens || 'yuksek';
 $('#set-sens').addEventListener('change', (e) => { store.setSetting('sens', e.target.value); speech.setSensitivity(e.target.value); });
 $('#set-sound').addEventListener('change', (e) => { store.setSetting('sound', e.target.checked); setSoundEnabled(e.target.checked); });
