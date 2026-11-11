@@ -169,3 +169,4 @@ button:disabled { opacity: .4; cursor: default; }
 .okc { color: var(--ok); font-weight: 700; }
 .seg { overflow-x: auto; scrollbar-width: none; }
 .seg button { white-space: nowrap; }
+.note.cur .head { fill: var(--accent); } .note.cur .stem { stroke: var(--accent); } .note.cur .note-label { fill: var(--accent); font-size: 14px; }

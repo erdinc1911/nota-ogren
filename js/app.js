@@ -250,14 +250,24 @@ function buildDeck(pool, n) {
   return deck.map(note => ({ note, retry: false }));
 }
 
+// Soru sayısı: nota başına 5 (en az 10, en çok 40). Grup: ilk seviyelerde tek nota,
+// sonra aynı portede yan yana 3–4 nota (soldan sağa okunur).
+function testSize(L, poolLen, mode) {
+  const g = mode === 'oku' ? (L.id <= 4 ? 1 : L.id <= 8 || L.accidentals ? 3 : 4) : 1;
+  let n = Math.max(10, Math.min(40, poolLen * 5));
+  n = Math.round(n / g) * g;
+  return { n, g };
+}
+
 function renderTest(L, body, mode = 'oku') {
   const pool = levelPool(L.id);
-  const N = L.questions || 30;
+  const { n: N, g: G } = testSize(L, pool.length, mode);
   const letters = [...new Set(pool.map(p => p.note.letter))].sort((a, b) => a - b);
   const ORDER = ['b', 'b2', '', '#2', '#'];
   const accs = L.accidentals ? [...new Set(['', ...pool.map(p => p.note.acc)])].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)) : [''];
   const bestKey = mode === 'oku' ? L.id : `koy-${L.id}`;
-  let deck, pos, answered, correct, q, item, locked, misses;
+  let deck, pos, answered, correct, group, gi, locked, misses;
+  const cur = () => group && group[gi];
 
   body.innerHTML = `
     <div class="test">
@@ -273,8 +283,18 @@ function renderTest(L, body, mode = 'oku') {
   const progress = () => {
     $('.bar i', body).style.width = Math.round(100 * answered / N) + '%';
     const best = store.getBest(bestKey);
+    const it = cur();
     $('.ptext', body).textContent = `Soru ${Math.min(answered + 1, N)} / ${N} · doğru ${correct}` +
-      (item && item.retry ? ' · tekrar sorusu' : '') + (best ? ` · en iyi %${best}` : '');
+      (it && it.retry ? ' · tekrar sorusu' : '') + (best ? ` · en iyi %${best}` : '');
+  };
+  const drawGroup = (extra = [], highlight = []) => {
+    if (mode === 'koy') return;
+    const notes = group.map((it, i) => {
+      if (i < gi) return { ...it.note, label: noteName(it.note), cls: it.ok ? 'ok' : 'okq' };
+      if (i === gi && G > 1) return { ...it.note, label: '?', cls: 'cur' };
+      return { ...it.note };
+    });
+    renderStaff(svg, notes.concat(extra), { width: staffWidth(), highlight });
   };
   const start = () => {
     deck = buildDeck(pool, N); pos = 0; answered = 0; correct = 0; misses = {};
@@ -284,40 +304,56 @@ function renderTest(L, body, mode = 'oku') {
   const next = () => {
     if (pos >= deck.length) return finishTest();
     locked = false;
-    item = deck[pos++]; q = item.note;
+    group = deck.slice(pos, pos + G); pos += group.length; gi = 0;
     $('.feedback', body).innerHTML = ''; $('.feedback', body).className = 'feedback';
     $('.next', body).hidden = true;
     if (mode === 'oku') {
-      renderStaff(svg, [q], { width: staffWidth() });
-      $('.prompt', body).innerHTML = item.retry ? 'Bu nota hangisi? <span class="muted">(az önce karıştırdığın nota)</span>' : 'Bu nota hangisi?';
+      drawGroup();
+      $('.prompt', body).innerHTML = G > 1
+        ? 'Notaları <b>soldan sağa</b> oku <span class="muted">işaretli nota sıradaki</span>'
+        : (cur().retry ? 'Bu nota hangisi? <span class="muted">(az önce karıştırdığın nota)</span>' : 'Bu nota hangisi?');
     } else {
       renderStaff(svg, [], { width: staffWidth() });
-      $('.prompt', body).innerHTML = `<b>${noteName(q)}</b> notasını porteye koy <span class="muted">doğru çizgiye ya da aralığa dokun</span>`;
+      $('.prompt', body).innerHTML = `<b>${noteName(cur().note)}</b> notasını porteye koy <span class="muted">doğru çizgiye ya da aralığa dokun</span>`;
     }
     progress();
   };
+  // Yanlışta geçmez: doğru cevap bekler. Puana yalnızca ilk deneme sayılır.
   const judge = (good, givenText, givenNote) => {
-    locked = true;
-    if (!item.retry) { answered++; if (good) correct++; }
-    if (!good) {
-      misses[noteName(q)] = (misses[noteName(q)] || 0) + 1;
-      // birkaç soru sonra yeniden sor (puana sayılmaz)
-      deck.splice(Math.min(deck.length, pos + 3), 0, { note: q, retry: true });
+    const it = cur(); const q = it.note;
+    const first = !it.tried;
+    it.tried = (it.tried || 0) + 1;
+    if (first) {
+      it.ok = good;
+      if (!it.retry) { answered++; if (good) correct++; }
+      store.recordAnswer(keyOf(q), good);
+      if (!good) misses[noteName(q)] = (misses[noteName(q)] || 0) + 1;
     }
-    store.recordAnswer(keyOf(q), good);
-    blip(good);
-    later(() => playCents(q.cents), 150);
-    const notes = [{ ...q, label: noteName(q), cls: good ? 'ok' : 'okq' }];
-    if (givenNote && !good) notes.unshift({ ...givenNote, label: 'sen', cls: 'bad' });
-    renderStaff(svg, notes, { width: staffWidth(), highlight: [q.step] });
     const fb = $('.feedback', body);
-    fb.className = 'feedback ' + (good ? 'good' : 'bad');
-    fb.innerHTML = good
-      ? `✓ Doğru! <b class="big">${noteName(q)}</b> <span class="muted">${placeName(q.step)}</span>`
-      : `✗ ${givenText} değil. Bu <b class="big">${noteName(q)}</b> <span class="muted">— ${placeName(q.step)}</span>`;
+    if (!good) {
+      blip(false);
+      fb.className = 'feedback bad';
+      fb.innerHTML = `✗ ${givenText} değil — tekrar dene.` +
+        (it.tried >= 2 ? ` <span class="muted">İpucu: ${placeName(q.step)}</span>` : '');
+      if (mode === 'koy' && givenNote) {
+        renderStaff(svg, [{ ...givenNote, label: noteName(givenNote), cls: 'bad' }], { width: staffWidth(), highlight: it.tried >= 2 ? [q.step] : [] });
+      } else if (it.tried >= 2) drawGroup([], [q.step]);
+      progress();
+      return;                                  // aynı soruda kal
+    }
+    // doğru
+    if (G === 1 || mode === 'koy') blip(true);
+    later(() => playCents(q.cents), 100);
+    gi++;
+    fb.className = 'feedback good';
+    fb.innerHTML = `✓ <b class="big">${noteName(q)}</b> <span class="muted">${placeName(q.step)}</span>`;
+    if (mode === 'koy') renderStaff(svg, [{ ...q, label: noteName(q), cls: it.ok ? 'ok' : 'okq' }], { width: staffWidth(), highlight: [q.step] });
+    else drawGroup();
     progress();
-    if (good) later(next, 900);
-    else $('.next', body).hidden = false;
+    if (gi < group.length) return;             // grupta sıradaki notaya geç
+    locked = true;
+    if (G > 1) blip(group.every(x => x.ok));
+    later(next, G > 1 ? 1100 : 900);
   };
   const finishTest = () => {
     if (speech.listening) speech.stop();
@@ -347,21 +383,22 @@ function renderTest(L, body, mode = 'oku') {
   };
 
   if (mode === 'oku') {
-    bindPad(body, (letter, acc) => {
-      if (locked) return;
-      finish(letter, acc);
-    });
-    const finish = (letter, acc) => judge(letter === q.letter && acc === q.acc, LETTERS[letter] + ACCIDENTALS[acc].label);
-    voiceHandler = (letter, acc) => {
-      if (locked) { if (!$('.next', body).hidden) next(); return; }
-      finish(letter, accs.includes(acc) ? acc : '');
+    const answer = (letter, acc) => {
+      if (locked || !cur()) return;
+      const q = cur().note;
+      judge(letter === q.letter && acc === q.acc, LETTERS[letter] + ACCIDENTALS[acc].label);
     };
-    $('.listen', body).addEventListener('click', () => q && playCents(q.cents));
+    bindPad(body, answer);
+    voiceHandler = (letter, acc) => {
+      if (locked) return;
+      answer(letter, accs.includes(acc) ? acc : '');
+    };
+    $('.listen', body).addEventListener('click', () => cur() && playCents(cur().note.cents));
   } else {
     onStaffTap(svg, (step) => {
-      if (locked || step < 26 || step > 42) return;
+      if (locked || !cur() || step < 26 || step > 42) return;
       const given = noteFromStep(step);
-      judge(given.letter === q.letter, `${noteName(given)} (${placeName(step)})`, given);
+      judge(given.letter === cur().note.letter, `${noteName(given)} (${placeName(step)})`, given);
     });
   }
   $('.next', body).addEventListener('click', next);

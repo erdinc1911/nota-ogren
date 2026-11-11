@@ -32,7 +32,7 @@ export const LEVELS = [
         text: 'Porteye sığmayan notalar için notanın yanına <b>kısa ek çizgiler</b> çizilir. Örneğin alttaki <b>Do</b> kendi ek çizgisinin üzerindedir; üstteki <b>La</b> da öyle.',
         staff: { notes: [N(DO4), N(LA5)] } },
       { title: 'Nasıl çalışacağız?',
-        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: her seviyede bir yeni nota; 20–40 soruluk sınavda <b>%90</b> ve üstü doğru yapınca sonraki seviye açılır. <b>Porteye koy</b> bölümünde de notaları porteye yerleştirerek çalışabilirsin.',
+        text: 'Her seviyede önce yeni notaları <b>öğreneceksin</b>, sonra <b>Alıştır</b> bölümünde porteye dokunarak ya da notayı söyleyerek istediğin kadar deneyeceksin. Hazır olunca <b>Sınav</b>’a gir: her seviyede bir yeni nota; nota sayısına göre 10–40 soruluk sınavda <b>%90</b> ve üstü doğru yapınca sonraki seviye açılır. <b>Porteye koy</b> bölümünde de notaları porteye yerleştirerek çalışabilirsin.',
         staff: { notes: [N(SOL4), N(LA4)] } },
     ],
   },
@@ -163,7 +163,7 @@ export const LEVELS = [
     id: 13, title: 'Hepsi bir arada', subtitle: 'Tüm porte, karışık', newNotes: [], questions: 40, review: true,
     slides: [
       { title: 'Tekrar zamanı',
-        text: 'Alttaki Do’dan üstteki La’ya kadar bütün notalar karışık sorulacak. Sınav 40 soru; geçmek için <b>%90 doğru</b>.',
+        text: 'Alttaki Do’dan üstteki La’ya kadar bütün notalar karışık sorulacak. Sınavda notalar portede yan yana gelir, soldan sağa okursun; geçmek için <b>%90 doğru</b>.',
         staff: { notes: NATURALS.map(x => ({ note: x, label: false })) } },
     ],
   },
