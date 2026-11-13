@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nota Öğren</title>
 <meta name="theme-color" content="#2b1d14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Nota Öğren">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
@@ -38,6 +43,8 @@
     </select>
   </label>
   <label class="check"><input type="checkbox" id="set-oct"> Solfejde oktav fark etmesin</label>
+  <button id="install-btn" class="primary-btn" hidden>⬇ Uygulamayı yükle (masaüstü simgesi)</button>
+  <p id="install-help" class="note" hidden></p>
   <button id="unlock-all" class="ghost-btn">Bütün seviyeleri aç</button>
   <button id="reset-all" class="ghost-btn">İlerlemeyi sıfırla</button>
   <p class="note">İlerlemen yalnızca bu cihazdaki tarayıcıda saklanır. Sesle cevap için 🎤 düğmesine bas; ilk seferde mikrofon izni sorulur.</p>

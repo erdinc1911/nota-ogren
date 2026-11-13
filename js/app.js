@@ -600,7 +600,37 @@ let resetArmed = false;
 $('#reset-all').addEventListener('click', (e) => {
   if (!resetArmed) { resetArmed = true; e.target.textContent = 'Emin misin? Tekrar dokun'; setTimeout(() => { resetArmed = false; e.target.textContent = 'İlerlemeyi sıfırla'; }, 3000); return; }
   store.resetAll(); resetArmed = false; e.target.textContent = 'İlerlemeyi sıfırla'; drawer.classList.remove('open'); location.hash = ''; route();
+
+
 });
 $('.brand').addEventListener('click', () => location.hash = '');
 
 route();
+
+// ------------------------------------------------------------- yüklenebilir uygulama (masaüstü simgesi)
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+let installEvt = null;
+const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); installEvt = e;
+  $('#install-btn').hidden = false; $('#install-help').hidden = true;
+});
+$('#install-btn').addEventListener('click', async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice.catch(() => {});
+  installEvt = null; $('#install-btn').hidden = true;
+});
+window.addEventListener('appinstalled', () => { $('#install-btn').hidden = true; });
+if (!standalone) {
+  setTimeout(() => {
+    if (installEvt) return;
+    const h = $('#install-help');
+    h.hidden = false;
+    h.innerHTML = /iPhone|iPad/.test(navigator.userAgent)
+      ? 'Masaüstü simgesi: Safari’de <b>Paylaş → Ana Ekrana Ekle</b>.'
+      : 'Masaüstü simgesi: tarayıcı menüsünden (⋮) <b>“Uygulamayı yükle”</b> ya da <b>“Ana ekrana ekle”</b>yi seç. Chrome/Edge’de adres çubuğunun sağındaki yükle simgesi de olur.';
+  }, 2500);
+}
